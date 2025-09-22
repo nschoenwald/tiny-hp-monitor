@@ -24,6 +24,8 @@ system.attributes.hp.tempmax (Temp Max HP)
 
 Single compact line with arrow “→” and spaced signs: “10 − 5 → 5”, “7 + 3 → 10”.
 
+Theme‑resilient CSS: minimal height, white text, soft text shadow for readability.
+
 ### Background colors
 
 Green = HP gain
@@ -39,9 +41,3 @@ Purple = Temp Max HP change
 NPCs: whispered to GMs only
 
 Player Characters: whispered to GMs and actor owners
-
-Duplicate‑safe in multiplayer: only the originating client posts.
-
-Token‑aware naming: prefers the specific token name when applicable.
-
-Theme‑resilient CSS: minimal height, white text, soft text shadow for readability.
