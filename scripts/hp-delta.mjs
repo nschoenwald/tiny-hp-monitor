@@ -2,11 +2,26 @@
 // - Watches HP value, Temp HP, and Temp Max HP changes.
 // - Posts a compact one-line chat entry with colored background:
 //   green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP).
-// - Visibility: NPC => GM only; Characters => GM + owning users.
+// - Visibility: NPC => configurable (GM only / GM+all players / GM+owners); Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
 
 Hooks.once("init", () => {
+
+  game.settings.register(MOD_ID, "npcAudience", {
+    name: "NPC Message Audience",
+    hint: "Who sees NPC health changes?",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      "gm": "GM only",
+      "gm-players": "GM + all players",
+      "gm-owners": "GM + owners (default)"
+    },
+    default: "gm-owners"
+  });
+
   console.log(`[${MOD_ID}] Initialized`);
 });
 
@@ -61,20 +76,28 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (active?.length) tokenName = active[0].name || tokenName;
     }
 
-    // Build recipients:
-    // - NPC: GM only
-    // - Character: GM + any owners
+    // Build recipients with audience tweaking
     const gmUsers = game.users.filter(u => u.isGM);
+    const owners = game.users.filter(u => actor.testUserPermission?.(u, "OWNER"));
+
+    const uniq = (...lists) => [...new Map(lists.flat().map(u => [u.id, u])).values()];
+    const mode = game.settings.get(MOD_ID, "npcAudience") ?? "gm-owners";
+
     let recipients;
     if (actor.type === "npc") {
-      recipients = gmUsers;
+      if (mode === "gm") {
+        recipients = gmUsers;
+      } else if (mode === "gm-players") {
+        const players = game.users.filter(u => !u.isGM);
+        recipients = uniq(gmUsers, players);
+      } else { // "gm-owners"
+        recipients = uniq(gmUsers, owners);
+      }
     } else {
-      // IMPORTANT: use the string level "OWNER" for v13 compatibility.
-      const owners = game.users.filter(u => actor.testUserPermission?.(u, "OWNER"));
-      const uniq = new Map();
-      [...gmUsers, ...owners].forEach(u => uniq.set(u.id, u));
-      recipients = [...uniq.values()];
+      // PCs and other non-NPCs: GM + owners
+      recipients = uniq(gmUsers, owners);
     }
+    if (!recipients?.length) recipients = gmUsers; // safety fallback
     const whisper = recipients.map(u => u.id);
 
     // HP value changes
