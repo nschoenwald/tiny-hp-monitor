@@ -84,7 +84,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       const delta = newHP - oldHP;
       if (delta !== 0) {
         const sign = delta > 0 ? "+" : "";
-        const line = `${tokenName} HP: ${oldHP} ${sign}${delta} → ${newHP}`;
+        const line = `${tokenName} HP: ${oldHP} ${sign} ${delta} → ${newHP}`;
         const cls = delta > 0 ? "hp-gain" : "hp-loss";
         results.push({ line, cls, kind: "hp" });
       }
@@ -97,7 +97,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       const deltaT = newTHP - oldTHP;
       if (deltaT !== 0) {
         const signT = deltaT > 0 ? "+" : "";
-        const line = `${tokenName} Temp: ${oldTHP} ${signT}${deltaT} → ${newTHP}`;
+        const line = `${tokenName} Temp: ${oldTHP} ${signT} ${deltaT} → ${newTHP}`;
         results.push({ line, cls: "hp-temp", kind: "temp" });
       }
     }
@@ -109,7 +109,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       const deltaTM = newTHPMax - oldTHPMax;
       if (deltaTM !== 0) {
         const signTM = deltaTM > 0 ? "+" : "";
-        const line = `${tokenName} Temp Max: ${oldTHPMax} ${signTM}${deltaTM} → ${newTHPMax}`;
+        const line = `${tokenName} Temp Max: ${oldTHPMax} ${signTM} ${deltaTM} → ${newTHPMax}`;
         results.push({ line, cls: "hp-tempmax", kind: "tempmax" });
       }
     }
