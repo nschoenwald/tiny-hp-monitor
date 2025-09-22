@@ -6,6 +6,8 @@ Messages whisper to the right people automatically.
 
 ## Example output
 
+![Example outputs](https://i.postimg.cc/598ydHRK/Greenshot-2025-09-22-13-22-31.png)
+
 TOKEN_NAME HP: 9 + 5 → 14” (green background)
 
 TOKEN_NAME Temp HP: 5 − 3 → 2” (blue background)
