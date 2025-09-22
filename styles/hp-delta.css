@@ -1,92 +1,55 @@
-/* Compact layout without altering horizontal width */
-.chat-log li.chat-message.hp-delta,
-#chat-log li.chat-message.hp-delta,
-.chat-log li.message.hp-delta,
-#chat-log li.message.hp-delta {
-  margin-top: 2px !important;
-  margin-bottom: 2px !important;
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 6px !important; /* slightly rounder for a clean pill look */
-  box-sizing: border-box !important;
+/* Keep the chat-message shell neutral so styles don't bleed */
+li.chat-message.hp-delta {
+  margin: 2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;     /* background now lives on .message-content */
+  box-shadow: none;
+  background: none !important;  /* explicit: don't paint the LI itself */
 }
 
-/* Subtle depth so the pill stands out on busy backgrounds */
-.chat-log li.chat-message.hp-delta,
-#chat-log li.chat-message.hp-delta,
-.chat-log li.message.hp-delta,
-#chat-log li.message.hp-delta {
-  /* faint inner and outer shadows without changing size */
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.25) !important;
+/* Hide header to keep height minimal */
+li.chat-message.hp-delta .message-header {
+  display: none;
 }
 
-/* Hide header for our messages */
-.chat-log li.chat-message.hp-delta .message-header,
-#chat-log li.chat-message.hp-delta .message-header,
-.chat-log li.message.hp-delta .message-header,
-#chat-log li.message.hp-delta .message-header {
-  display: none !important;
+/* Paint only the message-content, so context menus remain unaffected */
+li.chat-message.hp-delta .message-content {
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--hp-delta-bg, #444);
 }
 
-/* Content spacing */
-.chat-log li.chat-message.hp-delta .message-content,
-#chat-log li.chat-message.hp-delta .message-content,
-.chat-log li.message.hp-delta .message-content,
-#chat-log li.message.hp-delta .message-content {
-  margin: 0 !important;
-  padding: 2px 8px !important; /* a touch more side padding for readability */
+/* One-line content, scoped text color (no universal selector) */
+li.chat-message.hp-delta .message-content .hp-delta-line {
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #ffffff;                /* white text only inside the content */
+  font-weight: 600;
 }
 
-/* One-line text: white with a soft outline and slightly bolder weight */
-.chat-log li.chat-message.hp-delta .message-content .hp-delta-line,
-#chat-log li.chat-message.hp-delta .message-content .hp-delta-line,
-.chat-log li.message.hp-delta .message-content .hp-delta-line,
-#chat-log li.message.hp-delta .message-content .hp-delta-line {
-  margin: 0 !important;
-  padding: 0 !important;
-  line-height: 1.2 !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.1px !important;
-  white-space: nowrap !important;
-  color: #ffffff !important;
-
-  /* Readability on textured/bright colors: soft multi-directional shadow */
-  text-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.45),
-    0 0 2px rgba(0, 0, 0, 0.35),
-    -1px 0 1px rgba(0, 0, 0, 0.25),
-    1px 0 1px rgba(0, 0, 0, 0.25) !important;
-
-  /* Prefer tabular numbers for cleaner deltas if the font supports it */
-  font-variant-numeric: tabular-nums;
+/* In case themes style anchors/spans differently, scope them too */
+li.chat-message.hp-delta .message-content .hp-delta-line a,
+li.chat-message.hp-delta .message-content .hp-delta-line span,
+li.chat-message.hp-delta .message-content .hp-delta-line strong,
+li.chat-message.hp-delta .message-content .hp-delta-line em {
+  color: #ffffff;
 }
 
-/* Background colors with high contrast against white text */
-.chat-log li.chat-message.hp-delta.hp-gain,
-#chat-log li.chat-message.hp-delta.hp-gain,
-.chat-log li.message.hp-delta.hp-gain,
-#chat-log li.message.hp-delta.hp-gain { background-color: #2e7d32 !important; }  /* green */
+/* Background colors applied via a CSS variable on .message-content */
+li.chat-message.hp-delta.hp-gain    .message-content { --hp-delta-bg: #2e7d32; } /* green - HP gain */
+li.chat-message.hp-delta.hp-loss    .message-content { --hp-delta-bg: #c62828; } /* red   - HP loss */
+li.chat-message.hp-delta.hp-temp    .message-content { --hp-delta-bg: #1565c0; } /* blue  - Temp HP */
+li.chat-message.hp-delta.hp-tempmax .message-content { --hp-delta-bg: #6a1b9a; } /* purple- Temp Max HP */
 
-.chat-log li.chat-message.hp-delta.hp-loss,
-#chat-log li.chat-message.hp-delta.hp-loss,
-.chat-log li.message.hp-delta.hp-loss,
-#chat-log li.message.hp-delta.hp-loss { background-color: #c62828 !important; }  /* red */
-
-.chat-log li.chat-message.hp-delta.hp-temp,
-#chat-log li.chat-message.hp-delta.hp-temp,
-.chat-log li.message.hp-delta.hp-temp,
-#chat-log li.message.hp-delta.hp-temp { background-color: #1565c0 !important; }  /* blue */
-
-.chat-log li.chat-message.hp-delta.hp-tempmax,
-#chat-log li.chat-message.hp-delta.hp-tempmax,
-.chat-log li.message.hp-delta.hp-tempmax,
-#chat-log li.message.hp-delta.hp-tempmax { background-color: #6a1b9a !important; }  /* purple */
-
-/* Keep all nested text white (belt-and-suspenders) */
-.chat-log li.chat-message.hp-delta *,
-#chat-log li.chat-message.hp-delta *,
-.chat-log li.message.hp-delta *,
-#chat-log li.message.hp-delta * { color: #ffffff !important; }
+/* Optional: ensure the chat log's context menu keeps theme defaults.
+   These are intentionally non-!important so themes can still win. */
+#chat-log .context-menu,
+#chat-log .context-menu * {
+  color: inherit;
+  background: inherit;
+}
