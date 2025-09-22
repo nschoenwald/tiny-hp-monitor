@@ -1,55 +1,40 @@
-/* Keep the chat-message shell neutral so styles don't bleed */
+/* Compact message container */
 li.chat-message.hp-delta {
-  margin: 2px 0;
+  /* margin: 2px 0;  <-- removed so it matches normal chat message margins */
   padding: 0;
   border: none;
-  border-radius: 0;     /* background now lives on .message-content */
+  border-radius: 4px;
   box-shadow: none;
-  background: none !important;  /* explicit: don't paint the LI itself */
 }
 
-/* Hide header to keep height minimal */
+/* Hide the header to keep height tiny */
 li.chat-message.hp-delta .message-header {
   display: none;
 }
 
-/* Paint only the message-content, so context menus remain unaffected */
+/* Tight content area; do not affect siblings like context menus */
 li.chat-message.hp-delta .message-content {
   margin: 0;
   padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--hp-delta-bg, #444);
 }
 
-/* One-line content, scoped text color (no universal selector) */
+/* One-line, self-contained text styling (no spill into context menu) */
 li.chat-message.hp-delta .message-content .hp-delta-line {
+  color: #ffffff;               /* high-contrast text ON THE LINE ONLY */
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;             /* prevent horizontal growth */
+  text-overflow: ellipsis;      /* keep the message from being "too wide" */
   margin: 0;
   padding: 0;
-  line-height: 1.2;
-  font-size: 12px;
-  white-space: nowrap;
-  color: #ffffff;                /* white text only inside the content */
-  font-weight: 600;
 }
 
-/* In case themes style anchors/spans differently, scope them too */
-li.chat-message.hp-delta .message-content .hp-delta-line a,
-li.chat-message.hp-delta .message-content .hp-delta-line span,
-li.chat-message.hp-delta .message-content .hp-delta-line strong,
-li.chat-message.hp-delta .message-content .hp-delta-line em {
-  color: #ffffff;
-}
+/* Background colors (dark enough for contrast with white text) */
+li.chat-message.hp-delta.hp-gain    { background-color: #1b5e20; } /* green */
+li.chat-message.hp-delta.hp-loss    { background-color: #8b1e1e; } /* red */
+li.chat-message.hp-delta.hp-temp    { background-color: #0d47a1; } /* blue */
+li.chat-message.hp-delta.hp-tempmax { background-color: #4a148c; } /* purple */
 
-/* Background colors applied via a CSS variable on .message-content */
-li.chat-message.hp-delta.hp-gain    .message-content { --hp-delta-bg: #2e7d32; } /* green - HP gain */
-li.chat-message.hp-delta.hp-loss    .message-content { --hp-delta-bg: #c62828; } /* red   - HP loss */
-li.chat-message.hp-delta.hp-temp    .message-content { --hp-delta-bg: #1565c0; } /* blue  - Temp HP */
-li.chat-message.hp-delta.hp-tempmax .message-content { --hp-delta-bg: #6a1b9a; } /* purple- Temp Max HP */
-
-/* Optional: ensure the chat log's context menu keeps theme defaults.
-   These are intentionally non-!important so themes can still win. */
-#chat-log .context-menu,
-#chat-log .context-menu * {
-  color: inherit;
-  background: inherit;
-}
+li.chat-message.hp-delta { background-clip: padding-box; }

@@ -1,8 +1,8 @@
-// HP Delta Reporter for Foundry VTT v13, system dnd5e 5.1
+// Tiny HP Monitor for Foundry VTT v13, dnd5e 5.1
 // - Watches HP value, Temp HP, and Temp Max HP changes.
-// - Posts a compact one-line chat entry.
-// - Background color indicates the type/sign: green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP).
-// - Visibility: NPC -> GM only; Character -> GM + owning player(s).
+// - Posts a compact one-line chat entry with colored background:
+//   green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP).
+// - Visibility: NPC => GM only; Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
 
@@ -10,13 +10,7 @@ Hooks.once("init", () => {
   console.log(`[${MOD_ID}] Initialized`);
 });
 
-// Helper: format a signed delta with spaces, e.g., "+ 10" or "- 5"
-function formatDelta(delta) {
-  const sign = delta >= 0 ? "+" : "-";
-  return `${sign} ${Math.abs(delta)}`;
-}
-
-// Record old values prior to update so we can compute deltas after.
+// Stash "before" values so we can compute accurate deltas after clamping/house rules.
 Hooks.on("preUpdateActor", (actor, update, options, userId) => {
   try {
     if (game.system.id !== "dnd5e") return;
@@ -45,8 +39,8 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
   }
 });
 
-// After the update applies, compute deltas and whisper appropriately.
-// Only the originating client posts to avoid duplicates.
+// Post compact, color-coded messages after the update applies.
+// Only the originator client posts to prevent duplicates.
 Hooks.on("updateActor", async (actor, update, options, userId) => {
   try {
     if (game.system.id !== "dnd5e") return;
@@ -58,7 +52,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
     const hp = actor.system?.attributes?.hp ?? {};
     const results = [];
 
-    // Resolve display name (prefer token)
+    // Pick a display name favoring the specific token if present.
     let tokenName = actor.name;
     if (actor.isToken && actor.token) {
       tokenName = actor.token.name || tokenName;
@@ -67,50 +61,55 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (active?.length) tokenName = active[0].name || tokenName;
     }
 
-    // Determine whisper recipients: NPC -> GMs; Character -> GMs + owners
+    // Build recipients:
+    // - NPC: GM only
+    // - Character: GM + any owners
     const gmUsers = game.users.filter(u => u.isGM);
     let recipients;
     if (actor.type === "npc") {
       recipients = gmUsers;
     } else {
-      const owners = game.users.filter(u => actor.testUserPermission?.(u, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER));
+      // IMPORTANT: use the string level "OWNER" for v13 compatibility.
+      const owners = game.users.filter(u => actor.testUserPermission?.(u, "OWNER"));
       const uniq = new Map();
       [...gmUsers, ...owners].forEach(u => uniq.set(u.id, u));
       recipients = [...uniq.values()];
     }
-    let whisper = recipients.map(u => u.id);
-    if (!whisper.length) whisper = [game.userId];
+    const whisper = recipients.map(u => u.id);
 
-    // HP change
+    // HP value changes
     if (typeof payload.oldHP === "number") {
       const newHP = Number(hp.value ?? 0);
       const oldHP = payload.oldHP;
       const delta = newHP - oldHP;
       if (delta !== 0) {
-        const line = `${tokenName} HP: ${oldHP} ${formatDelta(delta)} → ${newHP}`;
+        const sign = delta > 0 ? "+" : "";
+        const line = `${tokenName} HP: ${oldHP} ${sign}${delta} → ${newHP}`;
         const cls = delta > 0 ? "hp-gain" : "hp-loss";
         results.push({ line, cls, kind: "hp" });
       }
     }
 
-    // Temp HP change
+    // Temp HP changes (always blue background)
     if (typeof payload.oldTHP === "number") {
       const newTHP = Number(hp.temp ?? 0);
       const oldTHP = payload.oldTHP;
       const deltaT = newTHP - oldTHP;
       if (deltaT !== 0) {
-        const line = `${tokenName} Temp HP: ${oldTHP} ${formatDelta(deltaT)} → ${newTHP}`;
+        const signT = deltaT > 0 ? "+" : "";
+        const line = `${tokenName} Temp: ${oldTHP} ${signT}${deltaT} → ${newTHP}`;
         results.push({ line, cls: "hp-temp", kind: "temp" });
       }
     }
 
-    // Temp Max HP change
+    // Temp Max HP changes (purple background)
     if (typeof payload.oldTHPMax === "number") {
       const newTHPMax = Number(hp.tempmax ?? 0);
       const oldTHPMax = payload.oldTHPMax;
       const deltaTM = newTHPMax - oldTHPMax;
       if (deltaTM !== 0) {
-        const line = `${tokenName} Temp Max HP: ${oldTHPMax} ${formatDelta(deltaTM)} → ${newTHPMax}`;
+        const signTM = deltaTM > 0 ? "+" : "";
+        const line = `${tokenName} Temp Max: ${oldTHPMax} ${signTM}${deltaTM} → ${newTHPMax}`;
         results.push({ line, cls: "hp-tempmax", kind: "tempmax" });
       }
     }
@@ -132,14 +131,15 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
   }
 });
 
-// Tag our messages on render so CSS can minimize and color the background.
+// Mark and color messages at render time.
 Hooks.on("renderChatMessage", (message, html) => {
   try {
     if (!message.getFlag(MOD_ID, "isHpDelta")) return;
+    const li = html?.[0]?.closest?.(".chat-message");
+    if (!li) return;
+    li.classList.add("hp-delta");
     const cls = message.getFlag(MOD_ID, "cls");
-    html.addClass("hp-delta");
-    if (cls) html.addClass(cls);
-    html.find(".message-content").addClass("hp-delta-content");
+    if (cls) li.classList.add(cls);
   } catch (err) {
     console.error(`[${MOD_ID}] renderChatMessage error`, err);
   }
