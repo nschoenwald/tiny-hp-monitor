@@ -24,7 +24,7 @@ system.attributes.hp.tempmax (Temp Max HP)
 
 Single compact line with arrow “→” and spaced signs: “10 − 5 → 5”, “7 + 3 → 10”.
 
-Background colors:
+### Background colors:
 
 Green = HP gain
 
@@ -34,7 +34,7 @@ Blue = Temp HP change
 
 Purple = Temp Max HP change
 
-Visibility:
+### Visibility:
 
 NPCs: whispered to GMs only
 
