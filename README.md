@@ -24,6 +24,8 @@ system.attributes.hp.temp (Temp HP)
 
 system.attributes.hp.tempmax (Temp Max HP)
 
+### Minimal vertical space per message
+
 Single compact line with arrow “→” and spaced signs: “10 − 5 → 5”, “7 + 3 → 10”.
 
 Theme‑resilient CSS: minimal height, white text, soft text shadow for readability.
