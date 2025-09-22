@@ -6,11 +6,11 @@ Messages whisper to the right people automatically.
 
 ## Example output
 
-“PLAYERNAME HP: 9 + 5 → 14” (green background)
+PLAYERNAME HP: 9 + 5 → 14” (green background)
 
-“PLAYERNAME Temp HP: 5 − 3 → 2” (blue background)
+PLAYERNAME Temp HP: 5 − 3 → 2” (blue background)
 
-“PLAYERNAME Temp Max HP: 0 + 5 → 5” (purple background)
+PLAYERNAME Temp Max HP: 0 + 5 → 5” (purple background)
 
 ## Features
 
