@@ -1,6 +1,6 @@
 # tiny-hp-monitor
 
-Tiny, one‑line HP change notifications for Foundry VTT v13 and DnD5e 5.1.
+Tiny, one‑line HP change notifications for Foundry VTT v13 and DnD5e v5+.
 Color‑coded background, white text with a subtle outline, and minimal vertical height.
 Messages whisper to the right people automatically.
 
