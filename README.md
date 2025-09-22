@@ -8,12 +8,6 @@ Messages whisper to the right people automatically.
 
 ![Example outputs](https://i.postimg.cc/598ydHRK/Greenshot-2025-09-22-13-22-31.png)
 
-TOKEN_NAME HP: 9 + 5 → 14” (green background)
-
-TOKEN_NAME Temp HP: 5 − 3 → 2” (blue background)
-
-TOKEN_NAME Temp Max HP: 0 + 5 → 5” (purple background)
-
 ## Features
 
 ### Watches these DnD5e fields
