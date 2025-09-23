@@ -4,7 +4,11 @@ li.chat-message.hp-delta {
   padding: 0;
   border: none;
   border-radius: 4px;
-  box-shadow: none;
+
+  /* Subtle depth for separation from chat background */
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.18) inset,   /* faint inner ring to define edges */
+    0 2px 4px rgba(0,0,0,0.18);         /* soft outer drop shadow */
 }
 
 /* Hide the header to keep height tiny */
@@ -29,6 +33,14 @@ li.chat-message.hp-delta .message-content .hp-delta-line {
   text-overflow: ellipsis;      /* keep the message from being "too wide" */
   margin: 0;
   padding: 0;
+
+  /* Subtle text outline and shadow for readability on dark colors */
+  /* Works in Foundry's Chromium/Electron runtime */
+  -webkit-text-stroke: 0.25px rgba(0,0,0,0.55); /* ultra-thin dark stroke */
+  paint-order: stroke fill;                      /* ensure stroke renders first */
+  text-shadow:
+    0 1px 1px rgba(0,0,0,0.35),  /* soft drop for depth */
+    0 0 1px rgba(0,0,0,0.35);    /* micro-glow to fight color bleed */
 }
 
 /* Background colors (dark enough for contrast with white text) */
@@ -38,3 +50,13 @@ li.chat-message.hp-delta.hp-temp    { background-color: #0d47a1; } /* blue */
 li.chat-message.hp-delta.hp-tempmax { background-color: #4a148c; } /* purple */
 
 li.chat-message.hp-delta { background-clip: padding-box; }
+
+/* Accessibility: when users prefer higher contrast, strengthen the outline slightly */
+@media (prefers-contrast: more) {
+  li.chat-message.hp-delta .message-content .hp-delta-line {
+    -webkit-text-stroke: 0.4px rgba(0,0,0,0.75);
+    text-shadow:
+      0 1px 1px rgba(0,0,0,0.45),
+      0 0 1px rgba(0,0,0,0.45);
+  }
+}

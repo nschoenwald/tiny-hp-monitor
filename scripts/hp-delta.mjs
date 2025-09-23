@@ -5,6 +5,18 @@
 // - Visibility: NPC => configurable (GM only / GM+all players / GM+owners); Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
+const MAX_NAME_CHARS = 30;
+
+/**
+ * Clip a name to MAX_NAME_CHARS and append "[...]"
+ * Only adds the suffix if clipping actually occurs.
+ * Uses Array.from to avoid cutting inside surrogate pairs.
+ */
+function clipName(name) {
+  const chars = Array.from(String(name ?? ""));
+  if (chars.length <= MAX_NAME_CHARS) return chars.join("");
+  return chars.slice(0, MAX_NAME_CHARS).join("") + "[...]";
+}
 
 Hooks.once("init", () => {
 
@@ -67,7 +79,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
     const hp = actor.system?.attributes?.hp ?? {};
     const results = [];
 
-    // Pick a display name favoring the specific token if present.
+    // Pick a display name favoring the specific token if present, then clip long names.
     let tokenName = actor.name;
     if (actor.isToken && actor.token) {
       tokenName = actor.token.name || tokenName;
@@ -75,6 +87,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       const active = actor.getActiveTokens();
       if (active?.length) tokenName = active[0].name || tokenName;
     }
+    const displayName = clipName(tokenName);
 
     // Build recipients with audience tweaking
     const gmUsers = game.users.filter(u => u.isGM);
@@ -108,7 +121,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (delta !== 0) {
         const sign = delta > 0 ? "+" : "-";
         const mag = Math.abs(delta);
-        const line = `${tokenName} HP: ${oldHP} ${sign} ${mag} → ${newHP}`;
+        const line = `${displayName} HP: ${oldHP} ${sign} ${mag} → ${newHP}`;
         const cls = delta > 0 ? "hp-gain" : "hp-loss";
         results.push({ line, cls, kind: "hp" });
       }
@@ -122,7 +135,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (deltaT !== 0) {
         const signT = deltaT > 0 ? "+" : "-";
         const magT = Math.abs(deltaT);
-        const line = `${tokenName} Temp: ${oldTHP} ${signT} ${magT} → ${newTHP}`;
+        const line = `${displayName} Temp: ${oldTHP} ${signT} ${magT} → ${newTHP}`;
         results.push({ line, cls: "hp-temp", kind: "temp" });
       }
     }
@@ -135,7 +148,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (deltaTM !== 0) {
         const signTM = deltaTM > 0 ? "+" : "-";
         const magTM = Math.abs(deltaTM);
-        const line = `${tokenName} Temp Max: ${oldTHPMax} ${signTM} ${magTM} → ${newTHPMax}`;
+        const line = `${displayName} Temp Max: ${oldTHPMax} ${signTM} ${magTM} → ${newTHPMax}`;
         results.push({ line, cls: "hp-tempmax", kind: "tempmax" });
       }
     }
