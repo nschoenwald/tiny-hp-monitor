@@ -5,7 +5,7 @@
 // - Visibility: NPC => configurable (GM only / GM+all players / GM+owners); Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
-const MAX_NAME_CHARS = 30;
+const MAX_NAME_CHARS = 25;
 
 /**
  * Clip a name to MAX_NAME_CHARS and append "[...]"

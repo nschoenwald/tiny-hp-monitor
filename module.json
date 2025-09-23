@@ -2,7 +2,7 @@
   "id": "tiny-hp-monitor",
   "title": "Tiny HP Monitor",
   "description": "Posts a tiny one-line chat message whenever a token's HP, Temp HP, or Temp Max HP changes.",
-  "version": "13.05",
+  "version": "13.06",
   "authors": [{ "name": "nikolai.sw" }],
   "compatibility": { "minimum": "13", "verified": "13" },
   "systems": ["dnd5e"],
