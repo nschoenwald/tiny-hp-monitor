@@ -48,6 +48,8 @@ li.chat-message.hp-delta.hp-gain    { background-color: #1b5e20; } /* green */
 li.chat-message.hp-delta.hp-loss    { background-color: #8b1e1e; } /* red */
 li.chat-message.hp-delta.hp-temp    { background-color: #0d47a1; } /* blue */
 li.chat-message.hp-delta.hp-tempmax { background-color: #4a148c; } /* purple */
+/* NEW: Inspiration (orange-gold) */
+li.chat-message.hp-delta.hp-inspiration { background-color: #c87f1f; } /* orange-gold */
 
 li.chat-message.hp-delta { background-clip: padding-box; }
 
