@@ -35,12 +35,11 @@ li.chat-message.hp-delta .message-content .hp-delta-line {
   padding: 0;
 
   /* Subtle text outline and shadow for readability on dark colors */
-  /* Works in Foundry's Chromium/Electron runtime */
-  -webkit-text-stroke: 0.25px rgba(0,0,0,0.55); /* ultra-thin dark stroke */
-  paint-order: stroke fill;                      /* ensure stroke renders first */
+  -webkit-text-stroke: 0.25px rgba(0,0,0,0.55);
+  paint-order: stroke fill;
   text-shadow:
-    0 1px 1px rgba(0,0,0,0.35),  /* soft drop for depth */
-    0 0 1px rgba(0,0,0,0.35);    /* micro-glow to fight color bleed */
+    0 1px 1px rgba(0,0,0,0.35),
+    0 0 1px rgba(0,0,0,0.35);
 }
 
 /* Background colors (dark enough for contrast with white text) */
@@ -48,8 +47,9 @@ li.chat-message.hp-delta.hp-gain    { background-color: #1b5e20; } /* green */
 li.chat-message.hp-delta.hp-loss    { background-color: #8b1e1e; } /* red */
 li.chat-message.hp-delta.hp-temp    { background-color: #0d47a1; } /* blue */
 li.chat-message.hp-delta.hp-tempmax { background-color: #4a148c; } /* purple */
-/* NEW: Inspiration (orange-gold) */
 li.chat-message.hp-delta.hp-inspiration { background-color: #c87f1f; } /* orange-gold */
+/* NEW: Currency (dark green) */
+li.chat-message.hp-delta.hp-currency { background-color: #10491a; } /* dark green */
 
 li.chat-message.hp-delta { background-clip: padding-box; }
 

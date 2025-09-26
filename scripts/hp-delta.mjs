@@ -2,8 +2,10 @@
 // Multi-system (auto-detect + configurable paths). Tested with dnd5e 5.1.
 // - Watches HP value, Temp HP, Temp Max HP changes (if present in the system).
 // - Optional DnD5e Inspiration tracking (world setting; default OFF).
+// - Optional currency tracking for DnD5e and PF2E (world setting; default OFF).
 // - Posts a compact one-line chat entry with colored background:
-//   green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP), orange-gold (Inspiration).
+//   green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP),
+//   orange-gold (Inspiration), dark green (Currency).
 // - Visibility: NPC => configurable (GM only / GM+all players / GM+owners); Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
@@ -125,7 +127,48 @@ function getDnd5eInspirationPath() {
 }
 
 /**
- * Read a numeric value from actor by dot-path. Missing/null => 0.
+ * Currency detection and helpers
+ */
+function detectCurrencyInfo(actor) {
+  const sys = game.system?.id ?? "";
+  const manualBase = getWorldPath("currencyBasePath");
+
+  // Candidate base paths by system
+  const candidates =
+    manualBase ? [manualBase] :
+    sys === "dnd5e" ? ["system.currency"] :
+    sys === "pf2e" ? [
+      "system.currencies",
+      "system.currency",
+      "system.wealth.treasure.currencies",
+      "system.wealth.currency",
+      "system.treasure.currency"
+    ] :
+    [
+      "system.currency",
+      "system.currencies",
+      "system.wealth.currency",
+      "system.treasure.currency"
+    ];
+
+  let basePath = null;
+  let obj = null;
+  for (const p of candidates) {
+    const o = foundry.utils.getProperty(actor, p);
+    if (o && typeof o === "object") { basePath = p; obj = o; break; }
+  }
+  if (!basePath) return { basePath: null, coins: [] };
+
+  // Known denominations; detect present keys
+  const all = ["pp", "gp", "ep", "sp", "cp"];
+  const present = all.filter(k => Object.prototype.hasOwnProperty.call(obj, k));
+
+  // PF2E typically has no EP; DnD5e does. We just reflect the presence in the data.
+  return { basePath, coins: present };
+}
+
+/**
+ * Read numeric from actor by dot path. Missing/null => 0.
  */
 function readNumber(actor, path) {
   if (!path) return 0;
@@ -190,6 +233,18 @@ function buildRecipients(actor) {
   return recipients.map(u => u.id);
 }
 
+/**
+ * Coin label for chat
+ */
+function coinLabel(denom, systemId) {
+  const labels = {
+    dnd5e: { pp: "Platinum", gp: "Gold", ep: "Electrum", sp: "Silver", cp: "Copper" },
+    pf2e:  { pp: "Platinum", gp: "Gold",              sp: "Silver", cp: "Copper" }
+  };
+  const map = systemId === "pf2e" ? labels.pf2e : labels.dnd5e;
+  return map[denom] ?? denom.toUpperCase();
+}
+
 // -------------------------------
 // Settings
 // -------------------------------
@@ -251,11 +306,31 @@ Hooks.once("init", () => {
   // Optional DnD5e Inspiration tracking
   game.settings.register(MOD_ID, "trackDnd5eInspiration", {
     name: "Track Inspiration (DnD5e only)",
-    hint: "When enabled, posts a message when a DnD5e actor's Inspiration toggles. Uses an orange-gold chat color.",
+    hint: "When enabled, posts a message when a DnD5e actor's Inspiration toggles.",
     scope: "world",
     config: true,
     type: Boolean,
     default: false
+  });
+
+  // NEW: Optional Currency tracking
+  game.settings.register(MOD_ID, "trackCurrency", {
+    name: "Track Currency (DnD5e & PF2E)",
+    hint: "When enabled, posts messages for coin changes (pp/gp/ep/sp/cp as available).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  // Optional manual override for currency base path (advanced)
+  game.settings.register(MOD_ID, "currencyBasePath", {
+    name: "Currency Base Path (Advanced)",
+    hint: "Dot path to the currency object (e.g., dnd5e: system.currency; pf2e: system.currencies). Leave blank to auto-detect.",
+    scope: "world",
+    config: true,
+    type: String,
+    default: ""
   });
 
   console.log(`[${MOD_ID}] Initialized (system=${game.system?.id}).`);
@@ -265,11 +340,15 @@ Hooks.once("ready", () => {
   // Log effective paths once (using the first owned actor as sample for detection).
   const sampleActor = game.actors?.contents?.[0];
   const paths = resolvePaths(sampleActor);
-  console.log(`[${MOD_ID}] Effective paths:`, paths);
+  console.log(`[${MOD_ID}] Effective HP/Temp paths:`, paths);
+
+  if (getWorldBool("trackCurrency", false) && sampleActor) {
+    console.log(`[${MOD_ID}] Currency detection sample:`, detectCurrencyInfo(sampleActor));
+  }
 });
 
 // -------------------------------
-/* Stash "before" values so we can compute accurate deltas after clamping/house rules. */
+// Stash "before" values so we can compute accurate deltas after clamping/house rules.
 // -------------------------------
 
 Hooks.on("preUpdateActor", (actor, update, options, userId) => {
@@ -285,7 +364,21 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
     const inspPath = inspEnabled ? getDnd5eInspirationPath() : null;
     const willInsp = inspPath ? willUpdatePath(update, inspPath) : false;
 
-    if (!willHP && !willTHP && !willTHPMax && !willInsp) return;
+    // Currency (DnD5e & PF2E)
+    const currencyEnabled = getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e");
+    let currencyPayload = null;
+    if (currencyEnabled) {
+      const { basePath, coins } = detectCurrencyInfo(actor);
+      if (basePath && coins.length) {
+        const baseChanged = willUpdatePath(update, basePath);
+        const anyCoinChanged = coins.some(k => willUpdatePath(update, `${basePath}.${k}`));
+        if (baseChanged || anyCoinChanged) {
+          currencyPayload = { basePath, coins };
+        }
+      }
+    }
+
+    if (!willHP && !willTHP && !willTHPMax && !willInsp && !currencyPayload) return;
 
     const oldHP = readNumber(actor, hpPath);
     const oldTHP = readNumber(actor, tempPath);
@@ -298,6 +391,18 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
     if (willTHP) options[MOD_ID].oldTHP = oldTHP;
     if (willTHPMax) options[MOD_ID].oldTHPMax = oldTHPMax;
     if (willInsp) options[MOD_ID].oldInspiration = oldInsp;
+
+    if (currencyPayload) {
+      const oldCurrency = {};
+      for (const k of currencyPayload.coins) {
+        oldCurrency[k] = readNumber(actor, `${currencyPayload.basePath}.${k}`);
+      }
+      options[MOD_ID].currency = {
+        basePath: currencyPayload.basePath,
+        coins: currencyPayload.coins,
+        old: oldCurrency
+      };
+    }
   } catch (err) {
     console.error(`[${MOD_ID}] preUpdateActor error`, err);
   }
@@ -371,6 +476,23 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
           ? `${displayName} gained Heroic Inspiration`
           : `${displayName} spent Heroic Inspiration`;
         results.push({ line, cls: "hp-inspiration", kind: "inspiration" });
+      }
+    }
+
+    // Currency changes (dark green)
+    if (payload.currency && getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e")) {
+      const { basePath, coins, old } = payload.currency;
+      for (const k of coins) {
+        const oldAmt = Number(old[k] ?? 0);
+        const newAmt = readNumber(actor, `${basePath}.${k}`);
+        const delta = newAmt - oldAmt;
+        if (delta === 0) continue;
+
+        const mag = Math.abs(delta);
+        const verb = delta > 0 ? "gained" : "spent";
+        const label = coinLabel(k, game.system?.id);
+        const line = `${displayName} ${verb} ${mag} ${label}`;
+        results.push({ line, cls: "hp-currency", kind: "currency" });
       }
     }
 
