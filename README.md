@@ -1,6 +1,7 @@
 # Tiny HP Monitor
 
-Tiny, one‑line HP change notifications for Foundry VTT v13 and DnD5e v5+.
+Tiny, one‑line HP change notifications for Foundry VTT v13 with support for DnD5e and other systems.
+Currently supported systems: DnD5e, PF2E, Shadow of the Demon Lord. Data paths for other systems can be entered manually.
 Color‑coded background, white text with a subtle outline, and minimal vertical height.
 Messages whisper to the right people automatically.
 
@@ -39,3 +40,9 @@ Purple = Temp Max HP change
 NPCs: whispered to GMs only
 
 Player Characters: whispered to GMs and actor owners
+
+## Additional (optional) Features
+
+(Heroic) Inspiration Tracking for DnD5e
+
+Currency Tracking (Platinum / Gold / Electrum / Silver / Copper) for DnD5e and PF2E and experimental support for other systems.
