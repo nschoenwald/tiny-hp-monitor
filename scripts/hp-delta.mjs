@@ -313,7 +313,7 @@ Hooks.once("init", () => {
     default: false
   });
 
-  // NEW: Optional Currency tracking
+  // Optional Currency tracking
   game.settings.register(MOD_ID, "trackCurrency", {
     name: "Track Currency (DnD5e & PF2E)",
     hint: "When enabled, posts messages for coin changes (pp/gp/ep/sp/cp as available).",
@@ -365,7 +365,7 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
     const willInsp = inspPath ? willUpdatePath(update, inspPath) : false;
 
     // Currency (DnD5e & PF2E)
-    const currencyEnabled = getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e");
+    const currencyEnabled = getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e"));
     let currencyPayload = null;
     if (currencyEnabled) {
       const { basePath, coins } = detectCurrencyInfo(actor);
@@ -479,7 +479,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       }
     }
 
-    // Currency changes (dark green)
+    // Currency changes (dark green) — formatted like HP with +/- and before → after
     if (payload.currency && getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e")) {
       const { basePath, coins, old } = payload.currency;
       for (const k of coins) {
@@ -488,10 +488,10 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
         const delta = newAmt - oldAmt;
         if (delta === 0) continue;
 
+        const sign = delta > 0 ? "+" : "-";
         const mag = Math.abs(delta);
-        const verb = delta > 0 ? "gained" : "spent";
         const label = coinLabel(k, game.system?.id);
-        const line = `${displayName} ${verb} ${mag} ${label}`;
+        const line = `${displayName} ${label}: ${oldAmt} ${sign} ${mag} → ${newAmt}`;
         results.push({ line, cls: "hp-currency", kind: "currency" });
       }
     }
