@@ -52,11 +52,20 @@ function getWorldPath(key) {
 function detectSystemPaths(sampleActor) {
   const sys = game.system?.id ?? "";
   // Known defaults by system id.
+  if (sys === "demonlord") {
+    return {
+      hpPath: "system.characteristics.health.value",
+      tempPath: null,
+      tempMaxPath: "system.characteristics.health.max",
+      damageSystem: true
+    };
+  }  
   if (sys === "dnd5e") {
     return {
       hpPath: "system.attributes.hp.value",
       tempPath: "system.attributes.hp.temp",
-      tempMaxPath: "system.attributes.hp.tempmax"
+      tempMaxPath: "system.attributes.hp.tempmax",
+      damageSystem: false
     };
   }
   if (sys === "pf2e") {
@@ -64,7 +73,8 @@ function detectSystemPaths(sampleActor) {
     return {
       hpPath: "system.attributes.hp.value",
       tempPath: "system.attributes.hp.temp",
-      tempMaxPath: null
+      tempMaxPath: null,
+      damageSystem: false
     };
   }
   if (sys === "shadowdark") {
@@ -72,7 +82,8 @@ function detectSystemPaths(sampleActor) {
     return {
       hpPath: "system.hp.value",
       tempPath: null,
-      tempMaxPath: null
+      tempMaxPath: null,
+      damageSystem: false      
     };
   }
 
@@ -99,8 +110,9 @@ function detectSystemPaths(sampleActor) {
   const hpPath = candidatesHP.find(p => Number.isFinite(Number(foundry.utils.getProperty(sampleActor ?? {}, p)))) || null;
   const tempPath = candidatesTemp.find(p => Number.isFinite(Number(foundry.utils.getProperty(sampleActor ?? {}, p)))) || null;
   const tempMaxPath = candidatesTempMax.find(p => Number.isFinite(Number(foundry.utils.getProperty(sampleActor ?? {}, p)))) || null;
+  const damageSystem = false;
 
-  return { hpPath, tempPath, tempMaxPath };
+  return { hpPath, tempPath, tempMaxPath, damageSystem };
 }
 
 /**
@@ -115,7 +127,8 @@ function resolvePaths(actor) {
   return {
     hpPath: getWorldPath("hpPath"),
     tempPath: getWorldPath("tempHpPath"),
-    tempMaxPath: getWorldPath("tempHpMaxPath")
+    tempMaxPath: getWorldPath("tempHpMaxPath"),
+    damageSystem: false
   };
 }
 
@@ -353,7 +366,7 @@ Hooks.once("ready", () => {
 
 Hooks.on("preUpdateActor", (actor, update, options, userId) => {
   try {
-    const { hpPath, tempPath, tempMaxPath } = resolvePaths(actor);
+    const { hpPath, tempPath, tempMaxPath,  damageSystem} = resolvePaths(actor);
 
     const willHP = willUpdatePath(update, hpPath);
     const willTHP = willUpdatePath(update, tempPath);
@@ -420,7 +433,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
     const payload = options?.[MOD_ID];
     if (!payload) return;
 
-    const { hpPath, tempPath, tempMaxPath } = resolvePaths(actor);
+    const { hpPath, tempPath, tempMaxPath, damageSystem } = resolvePaths(actor);
     const results = [];
 
     const displayName = getDisplayName(actor);
@@ -434,8 +447,12 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (delta !== 0) {
         const sign = delta > 0 ? "+" : "-";
         const mag = Math.abs(delta);
-        const line = `${displayName} HP: ${oldHP} ${sign} ${mag} → ${newHP}`;
-        const cls = delta > 0 ? "hp-gain" : "hp-loss";
+        let cls
+        const line = damageSystem ? `${displayName} Damage: ${oldHP} ${sign} ${mag} → ${newHP}` : `${displayName} HP: ${oldHP} ${sign} ${mag} → ${newHP}`;
+        if (damageSystem)
+           cls = delta < 0 ? "hp-gain" : "hp-loss"
+        else
+           cls = delta > 0 ? "hp-gain" : "hp-loss"
         results.push({ line, cls, kind: "hp" });
       }
     }
