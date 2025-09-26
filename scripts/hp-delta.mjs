@@ -365,7 +365,7 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
     const willInsp = inspPath ? willUpdatePath(update, inspPath) : false;
 
     // Currency (DnD5e & PF2E)
-    const currencyEnabled = getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e"));
+    const currencyEnabled = getWorldBool(("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e"));
     let currencyPayload = null;
     if (currencyEnabled) {
       const { basePath, coins } = detectCurrencyInfo(actor);
