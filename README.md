@@ -43,6 +43,10 @@ Player Characters: whispered to GMs and actor owners
 
 ## Additional (optional) Features
 
+![Optional features](https://i.postimg.cc/25J3S4VG/image.png)
+
 (Heroic) Inspiration Tracking for DnD5e
 
 Currency Tracking (Platinum / Gold / Electrum / Silver / Copper) for DnD5e and PF2E and experimental support for other systems.
+
+Item changes tracking (quantity & renaming)
