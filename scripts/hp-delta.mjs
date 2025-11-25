@@ -1,41 +1,43 @@
 // Tiny HP Monitor for Foundry VTT v13
-// Multi-system (auto-detect + configurable paths). Tested with dnd5e 5.1.
+// Multi-system (auto-detect + configurable paths). Tested with dnd5e 5.1+.
 // - Watches HP value, Temp HP, Temp Max HP changes (if present in the system).
 // - Optional DnD5e Inspiration tracking (world setting; default OFF).
+// - Optional DnD5e Death Save tracking (world setting; default OFF; PCs only).
 // - Optional currency tracking for DnD5e and PF2E (world setting; default OFF).
-// - Posts a compact one-line chat entry with colored background:
-//   green (HP gain), red (HP loss), blue (Temp HP), purple (Temp Max HP),
-//   orange-gold (Inspiration), dark green (Currency).
+// - Optional item tracking (create/delete/quantity/name changes; default OFF).
+// - Optional DnD5e spell preparation tracking (prepared/unprepared; default OFF).
+// - Posts compact chat entries with colored background:
+//   green (HP gain & Death Save success), red (HP loss & Death Save failure), blue (Temp HP), purple (Temp Max HP),
+//   orange-gold (Inspiration), dark green (Currency & Item changes), dark blue (Spell preparation).
 // - Visibility: NPC => configurable (GM only / GM+all players / GM+owners); Characters => GM + owning users.
 
 const MOD_ID = "tiny-hp-monitor";
 const MAX_NAME_CHARS = 25;
 
 // -------------------------------
+// Ephemeral per-document stashes (fix for batched item ops)
+// -------------------------------
+// In batched embedded document operations (e.g., level up, class import, character creation),
+// Foundry passes the SAME context/options object to every preUpdate/update call in the batch.
+// Stashing "old" values inside `options` causes cross-talk between items.
+// We use WeakMaps keyed by the Item document to isolate per-item state safely.
+const ITEM_UPDATE_STASH = new WeakMap(); // item => { oldQty?: number, oldName?: string }
+const ITEM_DELETE_STASH = new WeakMap(); // item => { displayName, whisper, name, qty, actorId }
+
+// -------------------------------
 // Utilities
 // -------------------------------
 
-/**
- * Clip a name to MAX_NAME_CHARS and append "[...]"
- * Only adds the suffix if clipping actually occurs.
- * Uses Array.from to avoid cutting inside surrogate pairs.
- */
 function clipName(name) {
   const chars = Array.from(String(name ?? ""));
   if (chars.length <= MAX_NAME_CHARS) return chars.join("");
   return chars.slice(0, MAX_NAME_CHARS).join("") + "[...]";
 }
 
-/**
- * Get safe boolean world setting.
- */
 function getWorldBool(key, def = false) {
   try { return Boolean(game.settings.get(MOD_ID, key)); } catch { return def; }
 }
 
-/**
- * Get safe string world setting (empty string => null meaning "unset").
- */
 function getWorldPath(key) {
   try {
     const v = game.settings.get(MOD_ID, key);
@@ -45,13 +47,8 @@ function getWorldPath(key) {
   } catch { return null; }
 }
 
-/**
- * Attempt to detect common HP/Temp/TempMax paths by system id first, then by probing.
- * Returns { hpPath, tempPath, tempMaxPath } (any may be null if unsupported).
- */
 function detectSystemPaths(sampleActor) {
-  const sys = game.system?.id ?? "";
-  // Known defaults by system id.
+  const sys = (game.system && game.system.id) || "";
   if (sys === "demonlord") {
     return {
       hpPath: "system.characteristics.health.value",
@@ -69,7 +66,6 @@ function detectSystemPaths(sampleActor) {
     };
   }
   if (sys === "pf2e") {
-    // PF2E has temp but no temp max.
     return {
       hpPath: "system.attributes.hp.value",
       tempPath: "system.attributes.hp.temp",
@@ -78,7 +74,6 @@ function detectSystemPaths(sampleActor) {
     };
   }
   if (sys === "shadowdark") {
-    // Shadowdark generally exposes system.hp.value; no temp concepts by default.
     return {
       hpPath: "system.hp.value",
       tempPath: null,
@@ -87,7 +82,6 @@ function detectSystemPaths(sampleActor) {
     };
   }
 
-  // Heuristic probe for unknown systems.
   const candidatesHP = [
     "system.attributes.hp.value",
     "system.hp.value",
@@ -115,15 +109,9 @@ function detectSystemPaths(sampleActor) {
   return { hpPath, tempPath, tempMaxPath, damageSystem };
 }
 
-/**
- * Resolve effective paths, honoring "auto-detect" setting and manual overrides.
- */
 function resolvePaths(actor) {
   const auto = getWorldBool("autoDetectPaths", true);
-  if (auto) {
-    return detectSystemPaths(actor);
-  }
-  // Manual overrides; allow partial overrides. Empty => treat as unsupported.
+  if (auto) return detectSystemPaths(actor);
   return {
     hpPath: getWorldPath("hpPath"),
     tempPath: getWorldPath("tempHpPath"),
@@ -132,21 +120,22 @@ function resolvePaths(actor) {
   };
 }
 
-/**
- * DnD5e Inspiration path.
- */
 function getDnd5eInspirationPath() {
   return "system.attributes.inspiration";
 }
 
-/**
- * Currency detection and helpers
- */
+// DnD5e 5.1+: canonical death save counters on the actor
+function getDnd5eDeathPaths() {
+  return {
+    successPath: "system.attributes.death.success",
+    failurePath: "system.attributes.death.failure"
+  };
+}
+
 function detectCurrencyInfo(actor) {
-  const sys = game.system?.id ?? "";
+  const sys = (game.system && game.system.id) || "";
   const manualBase = getWorldPath("currencyBasePath");
 
-  // Candidate base paths by system
   const candidates =
     manualBase ? [manualBase] :
     sys === "dnd5e" ? ["system.currency"] :
@@ -172,42 +161,27 @@ function detectCurrencyInfo(actor) {
   }
   if (!basePath) return { basePath: null, coins: [] };
 
-  // Known denominations; detect present keys
   const all = ["pp", "gp", "ep", "sp", "cp"];
   const present = all.filter(k => Object.prototype.hasOwnProperty.call(obj, k));
-
-  // PF2E typically has no EP; DnD5e does. We just reflect the presence in the data.
   return { basePath, coins: present };
 }
 
-/**
- * Read numeric from actor by dot path. Missing/null => 0.
- */
-function readNumber(actor, path) {
+function readNumber(doc, path) {
   if (!path) return 0;
-  const v = foundry.utils.getProperty(actor, path);
+  const v = foundry.utils.getProperty(doc, path);
   return Number.isFinite(Number(v)) ? Number(v) : 0;
 }
 
-/**
- * Read raw property.
- */
-function readRaw(actor, path) {
+function readRaw(doc, path) {
   if (!path) return undefined;
-  return foundry.utils.getProperty(actor, path);
+  return foundry.utils.getProperty(doc, path);
 }
 
-/**
- * Check whether an update object will modify a path.
- */
 function willUpdatePath(update, path) {
   if (!path) return false;
   return foundry.utils.hasProperty(update, path);
 }
 
-/**
- * Pick a display name favoring the specific token if present, then clip long names.
- */
 function getDisplayName(actor) {
   let tokenName = actor.name;
   if (actor.isToken && actor.token) {
@@ -219,9 +193,6 @@ function getDisplayName(actor) {
   return clipName(tokenName);
 }
 
-/**
- * Build whisper recipients based on NPC audience setting and ownership.
- */
 function buildRecipients(actor) {
   const gmUsers = game.users.filter(u => u.isGM);
   const owners = game.users.filter(u => actor.testUserPermission?.(u, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER));
@@ -235,20 +206,16 @@ function buildRecipients(actor) {
     } else if (mode === "gm-players") {
       const players = game.users.filter(u => !u.isGM);
       recipients = uniq(gmUsers, players);
-    } else { // "gm-owners"
+    } else {
       recipients = uniq(gmUsers, owners);
     }
   } else {
-    // PCs and other non-NPCs: GM + owners
     recipients = uniq(gmUsers, owners);
   }
-  if (!recipients?.length) recipients = gmUsers; // safety fallback
+  if (!recipients?.length) recipients = gmUsers;
   return recipients.map(u => u.id);
 }
 
-/**
- * Coin label for chat
- */
 function coinLabel(denom, systemId) {
   const labels = {
     dnd5e: { pp: "Platinum", gp: "Gold", ep: "Electrum", sp: "Silver", cp: "Copper" },
@@ -258,12 +225,76 @@ function coinLabel(denom, systemId) {
   return map[denom] ?? denom.toUpperCase();
 }
 
+/**
+ * DnD5e 5.1+: determine whether a spell is effectively "prepared".
+ * Uses system.method and system.prepared (replacement for deprecated preparation.*).
+ * - method "prepared" => uses boolean prepared flag
+ * - method "always"   => always prepared
+ * - other methods     => treated as not prepared for this feature
+ * Fallback: if method is missing but prepared is a boolean, use prepared.
+ */
+function dnd5eIsSpellPreparedLike(item) {
+  const method = String(readRaw(item, "system.method") ?? "");
+  const preparedVal = readRaw(item, "system.prepared");
+  const prepared = typeof preparedVal === "boolean" ? preparedVal : Boolean(preparedVal);
+
+  if (method === "prepared") return prepared;
+  if (method === "always") return true;
+
+  // Conservative fallback: if method missing/unknown but a truthy prepared is present, respect it
+  if (!method && typeof preparedVal !== "undefined") return prepared;
+
+  return false;
+}
+
+/**
+ * Compute the "new" prepared state from the change delta, without reading deprecated fields.
+ * - Prefers explicit booleans in change.system.prepared
+ * - Falls back to legacy delta keys (change.system.preparation.prepared/mode) without touching the live deprecated getters
+ * - If only "method" changed, uses post-update item.system.method/system.prepared
+ */
+function computePreparedAfter(item, change) {
+  const has = (p) => foundry.utils.hasProperty(change, p);
+  const get = (p) => foundry.utils.getProperty(change, p);
+
+  // Read method from delta (new first, then legacy), track presence separately from value
+  let methodGiven;
+  if (has("system.method")) methodGiven = String(get("system.method"));
+  else if (has("system.preparation.mode")) methodGiven = String(get("system.preparation.mode"));
+
+  // Read prepared from delta (new first, then legacy), track presence and coerce to boolean
+  let preparedGivenPresent = false;
+  let preparedGiven = false;
+  if (has("system.prepared")) {
+    preparedGivenPresent = true;
+    preparedGiven = Boolean(get("system.prepared"));
+  } else if (has("system.preparation.prepared")) {
+    preparedGivenPresent = true;
+    preparedGiven = Boolean(get("system.preparation.prepared"));
+  }
+
+  // If only prepared was toggled, the sheet typically doesn't include method; assume "prepared"
+  if (preparedGivenPresent && methodGiven === undefined) methodGiven = "prepared";
+
+  // If method is present in the delta, decide from delta (falling back to the updated doc only if necessary)
+  if (methodGiven !== undefined) {
+    if (methodGiven === "always") return true;
+    if (methodGiven === "prepared") {
+      if (preparedGivenPresent) return preparedGiven;
+      const afterPreparedVal = readRaw(item, "system.prepared");
+      return typeof afterPreparedVal === "boolean" ? afterPreparedVal : Boolean(afterPreparedVal);
+    }
+    return false;
+  }
+
+  return dnd5eIsSpellPreparedLike(item);
+}
+
 // -------------------------------
 // Settings
 // -------------------------------
 
 Hooks.once("init", () => {
-  // Audience control (unchanged behavior)
   game.settings.register(MOD_ID, "npcAudience", {
     name: "NPC Message Audience",
     hint: "Who sees NPC health changes?",
@@ -278,7 +309,6 @@ Hooks.once("init", () => {
     default: "gm-owners"
   });
 
-  // Auto-detect toggle: when enabled, paths are detected from the active system.
   game.settings.register(MOD_ID, "autoDetectPaths", {
     name: "Auto-Detect HP Paths",
     hint: "When enabled, auto-detect HP / Temp HP paths for this system (dnd5e, pf2e, shadowdark supported) or probe common paths for others.",
@@ -288,7 +318,6 @@ Hooks.once("init", () => {
     default: true
   });
 
-  // Manual override paths (leave blank to disable that field or rely on auto-detect).
   game.settings.register(MOD_ID, "hpPath", {
     name: "HP Value Path",
     hint: "Dot path to current HP (e.g., system.attributes.hp.value). Leave blank if not used or relying on Auto-Detect.",
@@ -297,7 +326,6 @@ Hooks.once("init", () => {
     type: String,
     default: ""
   });
-
   game.settings.register(MOD_ID, "tempHpPath", {
     name: "Temp HP Path",
     hint: "Dot path to temporary HP (e.g., system.attributes.hp.temp). Leave blank if your system has no Temp HP.",
@@ -306,7 +334,6 @@ Hooks.once("init", () => {
     type: String,
     default: ""
   });
-
   game.settings.register(MOD_ID, "tempHpMaxPath", {
     name: "Temp HP Max Path",
     hint: "Dot path to temporary HP Max (e.g., system.attributes.hp.tempmax). Leave blank if your system has no Temp HP Max.",
@@ -316,17 +343,24 @@ Hooks.once("init", () => {
     default: ""
   });
 
-  // Optional DnD5e Inspiration tracking
   game.settings.register(MOD_ID, "trackDnd5eInspiration", {
     name: "Track Inspiration (DnD5e only)",
-    hint: "When enabled, posts a message when a DnD5e actor's Inspiration toggles.",
+    hint: "When enabled, posts a message when a DnD5e actor's Heroic Inspiration toggles.",
     scope: "world",
     config: true,
     type: Boolean,
     default: false
   });
 
-  // Optional Currency tracking
+  game.settings.register(MOD_ID, "trackDnd5eDeathSaves", {
+    name: "Track Death Saves (DnD5e only, PCs)",
+    hint: "When enabled, whispers a message to the GM and the owning player when a PC's Death Save success or failure count changes.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
   game.settings.register(MOD_ID, "trackCurrency", {
     name: "Track Currency (DnD5e & PF2E)",
     hint: "When enabled, posts messages for coin changes (pp/gp/ep/sp/cp as available).",
@@ -336,7 +370,6 @@ Hooks.once("init", () => {
     default: false
   });
 
-  // Optional manual override for currency base path (advanced)
   game.settings.register(MOD_ID, "currencyBasePath", {
     name: "Currency Base Path (Advanced)",
     hint: "Dot path to the currency object (e.g., dnd5e: system.currency; pf2e: system.currencies). Leave blank to auto-detect.",
@@ -346,41 +379,57 @@ Hooks.once("init", () => {
     default: ""
   });
 
-  console.log(`[${MOD_ID}] Initialized (system=${game.system?.id}).`);
+  game.settings.register(MOD_ID, "trackItemChanges", {
+    name: "Track Item Changes",
+    hint: "When enabled, posts messages when owned items are created, deleted, their quantity changes (system.quantity), or are renamed.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  game.settings.register(MOD_ID, "trackDnd5eSpellPrep", {
+    name: "Track Spell Preparation (DnD5e only)",
+    hint: "When enabled, posts a message when a spell becomes prepared/unprepared.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
+  // Use plain concatenation here to avoid any template-literal parsing issues in certain environments
+  const sysId = (game.system && game.system.id) || "unknown";
+  console.log("[" + MOD_ID + "] Initialized (system=" + sysId + ").");
 });
 
 Hooks.once("ready", () => {
-  // Log effective paths once (using the first owned actor as sample for detection).
   const sampleActor = game.actors?.contents?.[0];
   const paths = resolvePaths(sampleActor);
-  console.log(`[${MOD_ID}] Effective HP/Temp paths:`, paths);
+  console.log("[" + MOD_ID + "] Effective HP/Temp paths:", paths);
 
   if (getWorldBool("trackCurrency", false) && sampleActor) {
-    console.log(`[${MOD_ID}] Currency detection sample:`, detectCurrencyInfo(sampleActor));
+    console.log("[" + MOD_ID + "] Currency detection sample:", detectCurrencyInfo(sampleActor));
   }
 });
 
 // -------------------------------
-// Stash "before" values so we can compute accurate deltas after clamping/house rules.
+// Stash "before" values for HP/Temp/Inspiration/Currency/Death Saves.
+// (Spell-prep does not require stashing.)
 // -------------------------------
 
 Hooks.on("preUpdateActor", (actor, update, options, userId) => {
   try {
-    const { hpPath, tempPath, tempMaxPath,  damageSystem} = resolvePaths(actor);
+    const { hpPath, tempPath, tempMaxPath, damageSystem } = resolvePaths(actor);
 
     const willHP = willUpdatePath(update, hpPath);
     const willTHP = willUpdatePath(update, tempPath);
     const willTHPMax = willUpdatePath(update, tempMaxPath);
 
-    // Inspiration (DnD5e only, and only if setting enabled)
-    const inspEnabled = (game.system?.id === "dnd5e") && getWorldBool("trackDnd5eInspiration", false);
+    const inspEnabled = ((game.system && game.system.id) === "dnd5e") && getWorldBool("trackDnd5eInspiration", false);
     const inspPath = inspEnabled ? getDnd5eInspirationPath() : null;
     const willInsp = inspPath ? willUpdatePath(update, inspPath) : false;
 
-    // Currency (DnD5e & PF2E)
-    // FIX: correct boolean to actually read the "trackCurrency" world setting,
-    // and then gate by supported systems.
-    const sys = game.system?.id ?? "";
+    const sys = (game.system && game.system.id) || "";
     const currencyEnabled = getWorldBool("trackCurrency", false) && (sys === "dnd5e" || sys === "pf2e");
 
     let currencyPayload = null;
@@ -395,15 +444,29 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
       }
     }
 
-    if (!willHP && !willTHP && !willTHPMax && !willInsp && !currencyPayload) return;
+    // DnD5e Death Save stash (PCs only)
+    let deathPayload = null;
+    if (sys === "dnd5e" && getWorldBool("trackDnd5eDeathSaves", false) && actor.type === "character") {
+      const { successPath, failurePath } = getDnd5eDeathPaths();
+      const willSucc = willUpdatePath(update, successPath);
+      const willFail = willUpdatePath(update, failurePath);
+      if (willSucc || willFail) {
+        deathPayload = {
+          oldSucc: readNumber(actor, successPath),
+          oldFail: readNumber(actor, failurePath)
+        };
+      }
+    }
+
+    if (!willHP && !willTHP && !willTHPMax && !willInsp && !currencyPayload && !deathPayload) return;
 
     const oldHP = readNumber(actor, hpPath);
     const oldTHP = readNumber(actor, tempPath);
     const oldTHPMax = readNumber(actor, tempMaxPath);
     const oldInsp = inspPath != null ? Boolean(readRaw(actor, inspPath)) : undefined;
 
-    options ??= {};
-    options[MOD_ID] ??= {};
+    options = options ?? {};
+    options[MOD_ID] = options[MOD_ID] ?? {};
     if (willHP) options[MOD_ID].oldHP = oldHP;
     if (willTHP) options[MOD_ID].oldTHP = oldTHP;
     if (willTHPMax) options[MOD_ID].oldTHPMax = oldTHPMax;
@@ -420,8 +483,12 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
         old: oldCurrency
       };
     }
+
+    if (deathPayload) {
+      options[MOD_ID].deathSaves = deathPayload;
+    }
   } catch (err) {
-    console.error(`[${MOD_ID}] preUpdateActor error`, err);
+    console.error("[" + MOD_ID + "] preUpdateActor error", err);
   }
 });
 
@@ -432,7 +499,7 @@ Hooks.on("preUpdateActor", (actor, update, options, userId) => {
 
 Hooks.on("updateActor", async (actor, update, options, userId) => {
   try {
-    if (userId !== game.userId) return; // single poster
+    if (userId !== game.userId) return;
 
     const payload = options?.[MOD_ID];
     if (!payload) return;
@@ -451,12 +518,10 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       if (delta !== 0) {
         const sign = delta > 0 ? "+" : "-";
         const mag = Math.abs(delta);
-        let cls
+        let cls;
         const line = damageSystem ? `${displayName} Damage: ${oldHP} ${sign} ${mag} → ${newHP}` : `${displayName} HP: ${oldHP} ${sign} ${mag} → ${newHP}`;
-        if (damageSystem)
-           cls = delta < 0 ? "hp-gain" : "hp-loss"
-        else
-           cls = delta > 0 ? "hp-gain" : "hp-loss"
+        if (damageSystem) cls = delta < 0 ? "hp-gain" : "hp-loss";
+        else cls = delta > 0 ? "hp-gain" : "hp-loss";
         results.push({ line, cls, kind: "hp" });
       }
     }
@@ -488,7 +553,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
     }
 
     // DnD5e Inspiration changes (orange-gold)
-    if (payload.hasOwnProperty("oldInspiration") && game.system?.id === "dnd5e" && getWorldBool("trackDnd5eInspiration", false)) {
+    if (payload.hasOwnProperty("oldInspiration") && (game.system && game.system.id) === "dnd5e" && getWorldBool("trackDnd5eInspiration", false)) {
       const inspPath = getDnd5eInspirationPath();
       const newInsp = Boolean(readRaw(actor, inspPath));
       const oldInsp = Boolean(payload.oldInspiration);
@@ -500,8 +565,8 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       }
     }
 
-    // Currency changes (dark green) — formatted like HP with +/- and before → after
-    if (payload.currency && getWorldBool("trackCurrency", false) && (game.system?.id === "dnd5e" || game.system?.id === "pf2e")) {
+    // Currency changes (dark green)
+    if (payload.currency && getWorldBool("trackCurrency", false) && ((game.system && game.system.id) === "dnd5e" || (game.system && game.system.id) === "pf2e")) {
       const { basePath, coins, old } = payload.currency;
       for (const k of coins) {
         const oldAmt = Number(old[k] ?? 0);
@@ -511,9 +576,27 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
 
         const sign = delta > 0 ? "+" : "-";
         const mag = Math.abs(delta);
-        const label = coinLabel(k, game.system?.id);
+        const label = coinLabel(k, (game.system && game.system.id));
         const line = `${displayName} ${label}: ${oldAmt} ${sign} ${mag} → ${newAmt}`;
         results.push({ line, cls: "hp-currency", kind: "currency" });
+      }
+    }
+
+    // DnD5e Death Saves (PCs only): green on success increment, red on failure increment
+    if (payload.deathSaves && (game.system && game.system.id) === "dnd5e" && getWorldBool("trackDnd5eDeathSaves", false) && actor.type === "character") {
+      const { successPath, failurePath } = getDnd5eDeathPaths();
+      const newSucc = readNumber(actor, successPath);
+      const newFail = readNumber(actor, failurePath);
+      const oldSucc = Number(payload.deathSaves.oldSucc ?? 0);
+      const oldFail = Number(payload.deathSaves.oldFail ?? 0);
+
+      const succInc = newSucc > oldSucc;
+      const failInc = newFail > oldFail;
+
+      if (succInc || failInc) {
+        const cls = succInc ? "hp-gain" : "hp-loss";
+        const line = `${displayName} ${newSucc} Death Save Successes, ${newFail} Fails`;
+        results.push({ line, cls, kind: "deathsave" });
       }
     }
 
@@ -522,7 +605,7 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
     for (const r of results) {
       await ChatMessage.create({
         type: CONST.CHAT_MESSAGE_TYPES.OTHER,
-        speaker: { alias: "" }, // header hidden via CSS
+        speaker: { alias: "" },
         content: `<div class="hp-delta-line">${r.line}</div>`,
         sound: null,
         whisper,
@@ -530,12 +613,185 @@ Hooks.on("updateActor", async (actor, update, options, userId) => {
       });
     }
   } catch (err) {
-    console.error(`[${MOD_ID}] updateActor error`, err);
+    console.error("[" + MOD_ID + "] updateActor error", err);
   }
 });
 
 // -------------------------------
-// Mark and color messages at render time.
+// Item create/delete/quantity/name tracking + DnD5e spell prep tracking
+// (Multi-line enabled for these message types)
+// -------------------------------
+
+async function postItemMessage(actor, line) {
+  const whisper = buildRecipients(actor);
+  await ChatMessage.create({
+    type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+    speaker: { alias: "" },
+    // Multi-line content for items
+    content: `<div class="hp-delta-line hp-multiline">${line}</div>`,
+    sound: null,
+    whisper,
+    flags: { [MOD_ID]: { isHpDelta: true, kind: "item", cls: "hp-item" } }
+  });
+}
+
+Hooks.on("createItem", async (item, options, userId) => {
+  try {
+    if (userId !== game.userId) return;
+    if (!getWorldBool("trackItemChanges", false)) return;
+    const actor = item.parent;
+    if (!(actor instanceof Actor)) return;
+
+    const qty = readNumber(item, "system.quantity") || 1;
+    const displayName = getDisplayName(actor);
+    const safeItemName = clipName(item.name);
+    const line = `${displayName} Item: ${safeItemName} — 0 + ${qty} → ${qty}`;
+    await postItemMessage(actor, line);
+  } catch (err) {
+    console.error("[" + MOD_ID + "] createItem error", err);
+  }
+});
+
+Hooks.on("preUpdateItem", (item, change, options, userId) => {
+  try {
+    const parent = item.parent;
+    if (!(parent instanceof Actor)) return;
+
+    const trackItems = getWorldBool("trackItemChanges", false);
+    const willQty  = trackItems && willUpdatePath(change, "system.quantity");
+    const willName = trackItems && willUpdatePath(change, "name");
+    if (!willQty && !willName) return;
+
+    // Stash per-item to avoid batched context cross-talk
+    const stash = ITEM_UPDATE_STASH.get(item) ?? {};
+    if (willQty)  stash.oldQty  = readNumber(item, "system.quantity") || 0;
+    if (willName) stash.oldName = String(item.name ?? "");
+    ITEM_UPDATE_STASH.set(item, stash);
+  } catch (err) {
+    console.error("[" + MOD_ID + "] preUpdateItem error", err);
+  }
+});
+
+Hooks.on("updateItem", async (item, change, options, userId) => {
+  try {
+    if (userId !== game.userId) return;
+    const actor = item.parent;
+    if (!(actor instanceof Actor)) return;
+
+    const stash = ITEM_UPDATE_STASH.get(item) ?? {};
+    // Clear immediately to avoid any chance of reuse
+    ITEM_UPDATE_STASH.delete(item);
+
+    const displayName = getDisplayName(actor);
+
+    // Quantity delta (items use multi-line style)
+    if (getWorldBool("trackItemChanges", false) && Object.prototype.hasOwnProperty.call(stash, "oldQty")) {
+      const oldQty = Number(stash.oldQty ?? 0);
+      const newQty = readNumber(item, "system.quantity") || 0;
+      if (newQty !== oldQty) {
+        const sign = (newQty - oldQty) > 0 ? "+" : "-";
+        const mag = Math.abs(newQty - oldQty);
+        const safeItemName = clipName(item.name);
+        const line = `${displayName}'s Item: ${safeItemName} — ${oldQty} ${sign} ${mag} → ${newQty}`;
+        await postItemMessage(actor, line);
+      }
+    }
+
+    // Name change tracking (same styling as quantity)
+    if (getWorldBool("trackItemChanges", false) && Object.prototype.hasOwnProperty.call(stash, "oldName")) {
+      const oldName = String(stash.oldName ?? "");
+      const newName = String(item.name ?? "");
+      if (newName !== oldName) {
+        const safeOld = clipName(oldName);
+        const safeNew = clipName(newName);
+        const line = `${displayName}'s Item renamed: ${safeOld} → ${safeNew}`;
+        await postItemMessage(actor, line);
+      }
+    }
+
+    // DnD5e Spell preparation posting (multi-line; robust evaluation)
+    if ((game.system && game.system.id) === "dnd5e" && getWorldBool("trackDnd5eSpellPrep", false) && item.type === "spell") {
+      const changedPrepared = willUpdatePath(change, "system.prepared") || willUpdatePath(change, "system.preparation.prepared");
+      const changedMethod   = willUpdatePath(change, "system.method")   || willUpdatePath(change, "system.preparation.mode");
+
+      if (changedPrepared || changedMethod) {
+        const effectivePrepared = computePreparedAfter(item, change);
+        const prefix = effectivePrepared ? "prepared" : "unprepared";
+        const safeItemName = clipName(item.name);
+        const spellLevel = readNumber(item, "system.level");
+        const levelTxt = Number.isFinite(spellLevel) ? ` (Lv ${spellLevel})` : "";
+        const whisper = buildRecipients(actor);
+        await ChatMessage.create({
+          type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+          speaker: { alias: "" },
+          // Multi-line content for spell prep
+          content: `<div class="hp-delta-line hp-multiline">${displayName} ${prefix}: ${safeItemName}${levelTxt}</div>`,
+          sound: null,
+          whisper,
+          flags: { [MOD_ID]: { isHpDelta: true, kind: "spellprep", cls: "hp-spellprep" } }
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[" + MOD_ID + "] updateItem error", err);
+  }
+});
+
+Hooks.on("preDeleteItem", (item, options, userId) => {
+  try {
+    if (!getWorldBool("trackItemChanges", false)) return;
+    const actor = item.parent;
+    if (!(actor instanceof Actor)) return;
+
+    const displayName = getDisplayName(actor);
+    const whisper = buildRecipients(actor);
+    // Stash per-item delete payload in WeakMap (avoid shared options)
+    ITEM_DELETE_STASH.set(item, {
+      displayName,
+      whisper,
+      name: clipName(item.name),
+      qty: readNumber(item, "system.quantity") || 0,
+      actorId: actor.id
+    });
+  } catch (err) {
+    console.error("[" + MOD_ID + "] preDeleteItem error", err);
+  }
+});
+
+Hooks.on("deleteItem", async (item, options, userId) => {
+  try {
+    if (userId !== game.userId) return;
+    if (!getWorldBool("trackItemChanges", false)) return;
+
+    // Retrieve and clear stash
+    const payload = ITEM_DELETE_STASH.get(item) || options?.[MOD_ID]?.itemDelete;
+    ITEM_DELETE_STASH.delete(item);
+    if (!payload) return;
+
+    const actor = item.parent instanceof Actor ? item.parent : (payload.actorId ? game.actors?.get(payload.actorId) : null);
+
+    const oldQty = Number(payload.qty ?? 0);
+    const sign = "-";
+    const mag = oldQty;
+    const displayName = payload.displayName ?? (actor ? getDisplayName(actor) : "Actor");
+    const line = `${displayName}'s Item: ${payload.name} — ${oldQty} ${sign} ${mag} → 0`;
+
+    const whisper = payload.whisper ?? (actor ? buildRecipients(actor) : []);
+    await ChatMessage.create({
+      type: CONST.CHAT_MESSAGE_TYPES.OTHER,
+      speaker: { alias: "" },
+      content: `<div class="hp-delta-line hp-multiline">${line}</div>`,
+      sound: null,
+      whisper,
+      flags: { [MOD_ID]: { isHpDelta: true, kind: "item", cls: "hp-item" } }
+    });
+  } catch (err) {
+    console.error("[" + MOD_ID + "] deleteItem error", err);
+  }
+});
+
+// -------------------------------
+// Render: add classes to hp-delta messages
 // -------------------------------
 
 Hooks.on("renderChatMessage", (message, html) => {
@@ -547,6 +803,6 @@ Hooks.on("renderChatMessage", (message, html) => {
     const cls = message.getFlag(MOD_ID, "cls");
     if (cls) li.classList.add(cls);
   } catch (err) {
-    console.error(`[${MOD_ID}] renderChatMessage error`, err);
+    console.error("[" + MOD_ID + "] renderChatMessage error", err);
   }
 });
