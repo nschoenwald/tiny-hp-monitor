@@ -4,16 +4,45 @@
    Variables & Configuration
    ------------------------------- */
 li.chat-message.tiny-monitor-msg {
-  --tm-green:       #1b5e20;
-  --tm-red:         #8b1e1e;
-  --tm-blue:        #0d47a1;
-  --tm-purple:      #4a148c;
-  --tm-gold:        #c87f1f;
-  --tm-darkgreen:   #10491a;
-  --tm-emerald:     #0a6b4a;
-  --tm-crimson:     #a02a3a;
-  --tm-slate:       #483D8B;
-  --tm-purple-deep: #673ab7; 
+  /* HP Changes */
+  --tm-hp-gain: #1b5e20;
+  /* Green */
+  --tm-hp-loss: #8b1e1e;
+  /* Red */
+
+  /* Temp HP */
+  --tm-temp-hp: #0d47a1;
+  /* Blue */
+  --tm-temp-max-hp: #006064;
+  /* Dark Teal */
+
+  /* Currency */
+  --tm-currency-gain: #c87f1f;
+  /* Gold */
+  --tm-currency-loss: #a02a3a;
+  /* Dark Red/Crimson */
+
+  /* Spell Slots */
+  --tm-spellslot-expend: #4a148c;
+  /* Deep Purple */
+  --tm-spellslot-regain: #7b1fa2;
+  /* Lighter Purple */
+
+  /* Spell Preparation */
+  --tm-spellprep: #283593;
+  /* Indigo */
+
+  /* Inspiration */
+  --tm-inspiration: #ff8f00;
+  /* Amber */
+
+  /* Items */
+  --tm-item-add: #0a6b4a;
+  /* Emerald */
+  --tm-item-remove: #a02a3a;
+  /* Crimson */
+  --tm-item-rename: #37474f;
+  /* Slate */
 
   padding: 0;
   border: none;
@@ -39,7 +68,7 @@ li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  
+
   color: #ffffff;
   font-family: var(--font-primary);
   font-weight: 700;
@@ -48,7 +77,7 @@ li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-li.chat-message.tiny-monitor-msg .tiny-monitor-line > i {
+li.chat-message.tiny-monitor-msg .tiny-monitor-line>i {
   flex: 0 0 auto;
   opacity: 0.9;
   font-size: 12px;
@@ -87,30 +116,78 @@ li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multilin
   align-items: flex-start;
 }
 
-li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline > i {
-  margin-top: 3px; 
+li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline>i {
+  margin-top: 3px;
 }
 
 /* -------------------------------
    Color Themes
    ------------------------------- */
-li.chat-message.tiny-monitor-msg.tiny-monitor-gain          { background-color: var(--tm-green); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-loss          { background-color: var(--tm-red); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-temp          { background-color: var(--tm-blue); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-tempmax       { background-color: var(--tm-purple); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-inspiration   { background-color: var(--tm-gold); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-item          { background-color: var(--tm-darkgreen); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-spellprep     { background-color: var(--tm-slate); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-item-inc      { background-color: var(--tm-emerald); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-item-dec      { background-color: var(--tm-crimson); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-currency-gain { background-color: var(--tm-darkgreen); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-currency-loss { background-color: var(--tm-crimson); }
-li.chat-message.tiny-monitor-msg.tiny-monitor-spellslot     { background-color: var(--tm-purple-deep); }
+/* HP Changes */
+li.chat-message.tiny-monitor-msg.tiny-monitor-gain {
+  background-color: var(--tm-hp-gain);
+}
 
-li.chat-message.tiny-monitor-msg { background-clip: padding-box; }
+li.chat-message.tiny-monitor-msg.tiny-monitor-loss {
+  background-color: var(--tm-hp-loss);
+}
+
+/* Temp HP */
+li.chat-message.tiny-monitor-msg.tiny-monitor-temp {
+  background-color: var(--tm-temp-hp);
+}
+
+li.chat-message.tiny-monitor-msg.tiny-monitor-tempmax {
+  background-color: var(--tm-temp-max-hp);
+}
+
+/* Currency */
+li.chat-message.tiny-monitor-msg.tiny-monitor-currency-gain {
+  background-color: var(--tm-currency-gain);
+}
+
+li.chat-message.tiny-monitor-msg.tiny-monitor-currency-loss {
+  background-color: var(--tm-currency-loss);
+}
+
+/* Spell Slots */
+li.chat-message.tiny-monitor-msg.tiny-monitor-spellslot-expend {
+  background-color: var(--tm-spellslot-expend);
+}
+
+li.chat-message.tiny-monitor-msg.tiny-monitor-spellslot-regain {
+  background-color: var(--tm-spellslot-regain);
+}
+
+/* Spell Preparation */
+li.chat-message.tiny-monitor-msg.tiny-monitor-spellprep {
+  background-color: var(--tm-spellprep);
+}
+
+/* Inspiration */
+li.chat-message.tiny-monitor-msg.tiny-monitor-inspiration {
+  background-color: var(--tm-inspiration);
+}
+
+/* Items */
+li.chat-message.tiny-monitor-msg.tiny-monitor-item-inc {
+  background-color: var(--tm-item-add);
+}
+
+li.chat-message.tiny-monitor-msg.tiny-monitor-item-dec {
+  background-color: var(--tm-item-remove);
+}
+
+li.chat-message.tiny-monitor-msg.tiny-monitor-item {
+  background-color: var(--tm-item-rename);
+}
+
+li.chat-message.tiny-monitor-msg {
+  background-clip: padding-box;
+}
 
 @media (prefers-contrast: more) {
   li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line {
-    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
 }

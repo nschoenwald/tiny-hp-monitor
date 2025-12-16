@@ -1,8 +1,8 @@
 {
   "id": "tiny-hp-monitor",
-  "title": "Tiny HP Monitor",
+  "title": "Nik's Tiny HP Monitor & Change Logs",
   "description": "<p>Posts a tiny one-line chat message whenever a token's HP, Temp HP, or Temp Max HP changes.</p>",
-  "version": "13.18",
+  "version": "13.19",
   "authors": [
     {
       "name": "nikolai.sw",
