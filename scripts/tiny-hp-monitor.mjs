@@ -191,24 +191,97 @@ function computePreparedAfter(item, change) {
 // -------------------------------
 
 Hooks.once("init", () => {
+  // -------------------------------------------------------------------
+  // 1. General Settings
+  // -------------------------------------------------------------------
+
+  game.settings.register(MOD_ID, "simpleOutput", {
+    name: "Simplified Output",
+    hint: "If enabled, logs will only show the adjustment amount (e.g., '+5') instead of the full transition (e.g., '10 + 5 -> 15'). This provides a cleaner, less verbose chat log.",
+    scope: "world", config: true, type: Boolean, default: false
+  });
+
   game.settings.register(MOD_ID, "npcAudience", {
     name: "NPC Message Audience",
-    hint: "Who sees NPC health changes?",
+    hint: "Determines which users receive chat messages for changes to NPC actors. 'GM only' is private, while 'GM + all players' shares all NPC changes publicly.",
     scope: "world", config: true, type: String,
     choices: { "gm": "GM only", "gm-players": "GM + all players", "gm-owners": "GM + owners (default)" },
     default: "gm-owners"
   });
-  game.settings.register(MOD_ID, "autoDetectPaths", { name: "Auto-Detect HP Paths", scope: "world", config: true, type: Boolean, default: true });
-  game.settings.register(MOD_ID, "hpPath", { name: "HP Value Path", scope: "world", config: true, type: String, default: "" });
-  game.settings.register(MOD_ID, "tempHpPath", { name: "Temp HP Path", scope: "world", config: true, type: String, default: "" });
-  game.settings.register(MOD_ID, "tempHpMaxPath", { name: "Temp HP Max Path", scope: "world", config: true, type: String, default: "" });
-  game.settings.register(MOD_ID, "trackDnd5eInspiration", { name: "Track Inspiration (DnD5e)", scope: "world", config: true, type: Boolean, default: false });
-  game.settings.register(MOD_ID, "trackDnd5eDeathSaves", { name: "Track Death Saves (DnD5e PCs)", scope: "world", config: true, type: Boolean, default: false });
-  game.settings.register(MOD_ID, "trackCurrency", { name: "Track Currency", scope: "world", config: true, type: Boolean, default: false });
-  game.settings.register(MOD_ID, "currencyBasePath", { name: "Currency Base Path (Adv)", scope: "world", config: true, type: String, default: "" });
-  game.settings.register(MOD_ID, "trackItemChanges", { name: "Track Item Changes", scope: "world", config: true, type: Boolean, default: false });
-  game.settings.register(MOD_ID, "trackDnd5eSpellPrep", { name: "Track Spell Preparation (DnD5e)", scope: "world", config: true, type: Boolean, default: true });
-  game.settings.register(MOD_ID, "trackDnd5eSpellSlots", { name: "Track Spell Slots (DnD5e)", scope: "world", config: true, type: Boolean, default: true });
+
+  game.settings.register(MOD_ID, "trackCurrency", {
+    name: "Track Currency",
+    hint: "If enabled, the module will monitor and log changes to actor currency (Gold, Silver, Platinum, etc.).",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MOD_ID, "trackItemChanges", {
+    name: "Track Item Changes",
+    hint: "If enabled, the module will monitor and log changes to items, including quantity updates, additions, deletions, and renaming.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  // -------------------------------------------------------------------
+  // 2. DnD5e Specific Settings
+  // -------------------------------------------------------------------
+
+  game.settings.register(MOD_ID, "trackDnd5eInspiration", {
+    name: "Track Inspiration (DnD5e)",
+    hint: "If enabled, logs when a DnD5e character gains or uses Heroic Inspiration.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MOD_ID, "trackDnd5eDeathSaves", {
+    name: "Track Death Saves (DnD5e PCs)",
+    hint: "If enabled, logs successes and failures for Death Saving Throws on DnD5e characters.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MOD_ID, "trackDnd5eSpellPrep", {
+    name: "Track Spell Preparation (DnD5e)",
+    hint: "If enabled, logs when spells are prepared or unprepared on DnD5e characters.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MOD_ID, "trackDnd5eSpellSlots", {
+    name: "Track Spell Slots (DnD5e)",
+    hint: "If enabled, logs when DnD5e spell slots are expended or regained.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  // -------------------------------------------------------------------
+  // 3. Advanced / Manual Path Configuration
+  // -------------------------------------------------------------------
+
+  game.settings.register(MOD_ID, "autoDetectPaths", {
+    name: "Auto-Detect HP Paths",
+    hint: "If enabled, the module attempts to automatically determine the correct data paths for HP and other attributes based on the active system. Disable this to manually configure paths below.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MOD_ID, "hpPath", {
+    name: "HP Value Path",
+    hint: "Manual System Data Path for HP Value (e.g., 'system.attributes.hp.value'). Only used if Auto-Detect HP Paths is disabled or fails.",
+    scope: "world", config: true, type: String, default: ""
+  });
+
+  game.settings.register(MOD_ID, "tempHpPath", {
+    name: "Temp HP Path",
+    hint: "Manual System Data Path for Temporary HP (e.g., 'system.attributes.hp.temp'). Only used if Auto-Detect HP Paths is disabled or fails.",
+    scope: "world", config: true, type: String, default: ""
+  });
+
+  game.settings.register(MOD_ID, "tempHpMaxPath", {
+    name: "Temp HP Max Path",
+    hint: "Manual System Data Path for Temporary HP Max (e.g., 'system.attributes.hp.tempmax'). Only used if Auto-Detect HP Paths is disabled or fails.",
+    scope: "world", config: true, type: String, default: ""
+  });
+
+  game.settings.register(MOD_ID, "currencyBasePath", {
+    name: "Currency Base Path (Adv)",
+    hint: "Manual System Data Path for Currency (e.g., 'system.currency'). Use this to override the default detection if needed.",
+    scope: "world", config: true, type: String, default: ""
+  });
 
   console.log(`[${MOD_ID}] Initialized.`);
 });
@@ -344,7 +417,15 @@ async function processActorUpdate(actor, data) {
     if (delta !== 0) {
       const cls = (damageSystem ? delta < 0 : delta > 0) ? "tiny-monitor-gain" : "tiny-monitor-loss";
       const icon = `<i class="fa-solid fa-heart"></i>`;
-      const line = `${icon} ${link} ${damageSystem ? "Damage" : "HP"}: ${data.oldHP} ${delta > 0 ? "+" : "-"} ${Math.abs(delta)} → ${newHP}`;
+      const sign = delta > 0 ? "+" : "-";
+      const abs = Math.abs(delta);
+      const isSimple = getWorldBool("simpleOutput");
+
+      const text = isSimple
+        ? `${damageSystem ? "Damage" : "HP"}: ${sign} ${abs}`
+        : `${damageSystem ? "Damage" : "HP"}: ${data.oldHP} ${sign} ${abs} → ${newHP}`;
+
+      const line = `${icon} ${link} ${text}`;
       await postMonitorMessage(actor, line, cls, "hp");
     }
   }
@@ -355,7 +436,15 @@ async function processActorUpdate(actor, data) {
     const delta = newTHP - data.oldTHP;
     if (delta !== 0) {
       const icon = `<i class="fa-solid fa-shield-halved"></i>`;
-      const line = `${icon} ${link} Temp: ${data.oldTHP} ${delta > 0 ? "+" : "-"} ${Math.abs(delta)} → ${newTHP}`;
+      const sign = delta > 0 ? "+" : "-";
+      const abs = Math.abs(delta);
+      const isSimple = getWorldBool("simpleOutput");
+
+      const text = isSimple
+        ? `Temp: ${sign} ${abs}`
+        : `Temp: ${data.oldTHP} ${sign} ${abs} → ${newTHP}`;
+
+      const line = `${icon} ${link} ${text}`;
       await postMonitorMessage(actor, line, "tiny-monitor-temp", "temp");
     }
   }
@@ -366,7 +455,15 @@ async function processActorUpdate(actor, data) {
     const delta = newTHPMax - data.oldTHPMax;
     if (delta !== 0) {
       const icon = `<i class="fa-solid fa-circle-plus"></i>`;
-      const line = `${icon} ${link} Temp Max: ${data.oldTHPMax} ${delta > 0 ? "+" : "-"} ${Math.abs(delta)} → ${newTHPMax}`;
+      const sign = delta > 0 ? "+" : "-";
+      const abs = Math.abs(delta);
+      const isSimple = getWorldBool("simpleOutput");
+
+      const text = isSimple
+        ? `Temp Max: ${sign} ${abs}`
+        : `Temp Max: ${data.oldTHPMax} ${sign} ${abs} → ${newTHPMax}`;
+
+      const line = `${icon} ${link} ${text}`;
       await postMonitorMessage(actor, line, "tiny-monitor-tempmax", "tempmax");
     }
   }
@@ -389,7 +486,16 @@ async function processActorUpdate(actor, data) {
       const delta = newVal - oldVal;
       if (delta !== 0) {
         const icon = `<i class="fa-solid fa-coins"></i>`;
-        const line = `${icon} ${link} ${coinLabel(k, game.system.id)}: ${oldVal} ${delta > 0 ? "+" : "-"} ${Math.abs(delta)} → ${newVal}`;
+        const sign = delta > 0 ? "+" : "-";
+        const abs = Math.abs(delta);
+        const name = coinLabel(k, game.system.id);
+        const isSimple = getWorldBool("simpleOutput");
+
+        const text = isSimple
+          ? `${name}: ${sign} ${abs}`
+          : `${name}: ${oldVal} ${sign} ${abs} → ${newVal}`;
+
+        const line = `${icon} ${link} ${text}`;
         const cls = delta > 0 ? "tiny-monitor-currency-gain" : "tiny-monitor-currency-loss";
         await postMonitorMessage(actor, line, cls, "currency");
       }
@@ -476,9 +582,16 @@ Hooks.on("createItem", async (item, options, userId) => {
   const link = getActorLink(item.parent);
   const safeItemName = clipName(item.name);
   const icon = `<i class="fa-solid fa-backpack"></i>`;
-  const line = qty === 1
-    ? `${icon} ${link} Item added: ${safeItemName}`
-    : `${icon} ${link} Item: ${safeItemName} — 0 + ${qty} → ${qty}`;
+
+  const isSimple = getWorldBool("simpleOutput");
+
+  let line;
+  if (qty === 1 || isSimple) {
+    line = `${icon} ${link} added ${safeItemName}${qty > 1 ? ` (+${qty})` : ""}`;
+  } else {
+    // Verbose existing behavior for initial quantity > 1
+    line = `${icon} ${link} (${safeItemName}): 0 + ${qty} → ${qty}`;
+  }
 
   await postMonitorMessage(item.parent, line, "tiny-monitor-item-inc", "item", true);
 });
@@ -547,11 +660,27 @@ async function processItemUpdate(item, data) {
 
     if (newQty !== oldQty) {
       const safeItemName = clipName(item.name);
-      if (oldQty === 0 && newQty === 1) await postMonitorMessage(item.parent, `${icon} ${link} Item added: ${safeItemName}`, "tiny-monitor-item-inc", "item", true);
-      else if (oldQty === 1 && newQty === 0) await postMonitorMessage(item.parent, `${icon} ${link} Item deleted: ${safeItemName}`, "tiny-monitor-item-dec", "item", true);
+
+      const delta = newQty - oldQty;
+      const sign = delta > 0 ? "+" : "-";
+      const abs = Math.abs(delta);
+      const isSimple = getWorldBool("simpleOutput");
+
+      if (oldQty === 0 && newQty === 1) {
+        // Treated as pure addition
+        await postMonitorMessage(item.parent, `${icon} ${link} added ${safeItemName}`, "tiny-monitor-item-inc", "item", true);
+      }
+      else if (oldQty === 1 && newQty === 0) {
+        // Treated as pure deletion
+        await postMonitorMessage(item.parent, `${icon} ${link} deleted ${safeItemName}`, "tiny-monitor-item-dec", "item", true);
+      }
       else {
-        const delta = newQty - oldQty;
-        const line = `${icon} ${link}'s Item: ${safeItemName} — ${oldQty} ${delta > 0 ? "+" : "-"} ${Math.abs(delta)} → ${newQty}`;
+        // Quantity adjustment
+        const text = isSimple
+          ? `${sign} ${abs}`
+          : `${oldQty} ${sign} ${abs} → ${newQty}`;
+
+        const line = `${icon} ${link} ${safeItemName}: ${text}`;
         await postMonitorMessage(item.parent, line, delta > 0 ? "tiny-monitor-item-inc" : "tiny-monitor-item-dec", "item", true);
       }
     }
@@ -559,7 +688,7 @@ async function processItemUpdate(item, data) {
 
   // Rename
   if (data.oldName !== undefined && item.name !== data.oldName) {
-    const line = `${icon} ${link}'s Item renamed: ${clipName(data.oldName)} → ${clipName(item.name)}`;
+    const line = `${icon} ${link} Item: ${clipName(data.oldName)} → ${clipName(item.name)}`;
     await postMonitorMessage(item.parent, line, "tiny-monitor-item", "item", true);
   }
 }
@@ -596,9 +725,9 @@ Hooks.on("deleteItem", async (item, options, userId) => {
   const treatAsSingleton = !hasQty || oldQty <= 1;
   const icon = `<i class="fa-solid fa-backpack"></i>`;
 
-  const line = treatAsSingleton
-    ? `${icon} ${link} Item deleted: ${name}`
-    : `${icon} ${link}'s Item: ${name} — ${oldQty} - ${oldQty} → 0`;
+  const line = (treatAsSingleton || getWorldBool("simpleOutput"))
+    ? `${icon} ${link} deleted ${name}`
+    : `${icon} ${link} ${name}: ${oldQty} - ${oldQty} → 0`;
 
   await ChatMessage.create({
     content: `<div class="tiny-monitor-line tm-multiline">${line}</div>`,
