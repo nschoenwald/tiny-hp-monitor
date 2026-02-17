@@ -113,11 +113,12 @@ li.chat-message.tiny-monitor-msg .tiny-monitor-line .content-link i {
 li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline {
   white-space: normal;
   word-break: break-word;
-  align-items: flex-start;
+  display: block;
 }
 
-li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline>i {
-  margin-top: 3px;
+li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline>i,
+li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline .content-link {
+  margin-right: 4px;
 }
 
 /* -------------------------------
