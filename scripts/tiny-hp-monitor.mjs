@@ -158,17 +158,8 @@ async function postMonitorMessage(actor, line, cls, kind, isMultiline = false) {
   });
 }
 
-function escapeHtmlAttr(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
 function buildMonitorLine(actor, icon, text) {
-  const fullActorName = escapeHtmlAttr(getActorDisplayName(actor));
-  return `${icon}<span class="tm-actor" data-full-name="${fullActorName}">${getActorLink(actor)}</span><span class="tm-text">${text}</span>`;
+  return `${icon}<span class="tm-actor">${getActorLink(actor)}</span><span class="tm-text">${text}</span>`;
 }
 
 // DnD5e Spell Prep Logic
@@ -755,13 +746,5 @@ Hooks.on("renderChatMessage", (message, html) => {
     li.classList.add("tiny-monitor-msg");
     const cls = message.getFlag(MOD_ID, "cls");
     if (cls) li.classList.add(cls);
-  }
-
-  const actorSpans = html[0]?.querySelectorAll?.(".tiny-monitor-line .tm-actor[data-full-name]") ?? [];
-  for (const span of actorSpans) {
-    const fullName = span.getAttribute("data-full-name");
-    if (!fullName) continue;
-    const actorLink = span.querySelector(".content-link");
-    if (actorLink) actorLink.setAttribute("title", fullName);
   }
 });
