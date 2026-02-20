@@ -155,6 +155,10 @@ async function postMonitorMessage(actor, line, cls, kind, isMultiline = false) {
   });
 }
 
+function buildMonitorLine(actor, icon, text) {
+  return `${icon}<span class="tm-actor">${getActorLink(actor)}</span><span class="tm-text">${text}</span>`;
+}
+
 // DnD5e Spell Prep Logic
 function dnd5eIsSpellPreparedLike(item) {
   const method = String(readRaw(item, "system.method") ?? "");
@@ -408,7 +412,6 @@ Hooks.on("updateActor", (actor, update, options, userId) => {
 
 async function processActorUpdate(actor, data) {
   const { hpPath, tempPath, tempMaxPath, damageSystem } = resolvePaths(actor);
-  const link = getActorLink(actor);
 
   // HP
   if (data.oldHP !== undefined && hpPath) {
@@ -425,7 +428,7 @@ async function processActorUpdate(actor, data) {
         ? `${damageSystem ? "Damage" : "HP"}: ${sign} ${abs}`
         : `${damageSystem ? "Damage" : "HP"}: ${data.oldHP} ${sign} ${abs} → ${newHP}`;
 
-      const line = `${icon} ${link} ${text}`;
+      const line = buildMonitorLine(actor, icon, text);
       await postMonitorMessage(actor, line, cls, "hp");
     }
   }
@@ -444,7 +447,7 @@ async function processActorUpdate(actor, data) {
         ? `Temp: ${sign} ${abs}`
         : `Temp: ${data.oldTHP} ${sign} ${abs} → ${newTHP}`;
 
-      const line = `${icon} ${link} ${text}`;
+      const line = buildMonitorLine(actor, icon, text);
       await postMonitorMessage(actor, line, "tiny-monitor-temp", "temp");
     }
   }
@@ -463,7 +466,7 @@ async function processActorUpdate(actor, data) {
         ? `Temp Max: ${sign} ${abs}`
         : `Temp Max: ${data.oldTHPMax} ${sign} ${abs} → ${newTHPMax}`;
 
-      const line = `${icon} ${link} ${text}`;
+      const line = buildMonitorLine(actor, icon, text);
       await postMonitorMessage(actor, line, "tiny-monitor-tempmax", "tempmax");
     }
   }
@@ -473,7 +476,7 @@ async function processActorUpdate(actor, data) {
     const newInsp = Boolean(readRaw(actor, getDnd5eInspirationPath()));
     if (newInsp !== data.oldInspiration) {
       const icon = `<i class="fa-solid fa-dice-d20"></i>`;
-      const line = `${icon} ${link} ${newInsp ? "gained" : "spent"} Heroic Inspiration`;
+      const line = buildMonitorLine(actor, icon, `${newInsp ? "gained" : "spent"} Heroic Inspiration`);
       await postMonitorMessage(actor, line, "tiny-monitor-inspiration", "inspiration");
     }
   }
@@ -495,7 +498,7 @@ async function processActorUpdate(actor, data) {
           ? `${name}: ${sign} ${abs}`
           : `${name}: ${oldVal} ${sign} ${abs} → ${newVal}`;
 
-        const line = `${icon} ${link} ${text}`;
+        const line = buildMonitorLine(actor, icon, text);
         const cls = delta > 0 ? "tiny-monitor-currency-gain" : "tiny-monitor-currency-loss";
         await postMonitorMessage(actor, line, cls, "currency");
       }
@@ -517,12 +520,12 @@ async function processActorUpdate(actor, data) {
 
       if (delta > 0) {
         // Gained success(es)
-        const line = `${icon} ${link} gained ${delta} Death Save ${delta === 1 ? 'Success' : 'Successes'} (${newSucc}/3)`;
+        const line = buildMonitorLine(actor, icon, `gained ${delta} Death Save ${delta === 1 ? 'Success' : 'Successes'} (${newSucc}/3)`);
         await postMonitorMessage(actor, line, "tiny-monitor-gain", "deathsave");
       } else {
         // Lost success(es) or reset
         const absDelta = Math.abs(delta);
-        const line = `${icon} ${link} lost ${absDelta} Death Save ${absDelta === 1 ? 'Success' : 'Successes'} (${newSucc}/3)`;
+        const line = buildMonitorLine(actor, icon, `lost ${absDelta} Death Save ${absDelta === 1 ? 'Success' : 'Successes'} (${newSucc}/3)`);
         await postMonitorMessage(actor, line, "tiny-monitor-loss", "deathsave");
       }
     }
@@ -534,12 +537,12 @@ async function processActorUpdate(actor, data) {
 
       if (delta > 0) {
         // Gained failure(s)
-        const line = `${icon} ${link} gained ${delta} Death Save ${delta === 1 ? 'Failure' : 'Failures'} (${newFail}/3)`;
+        const line = buildMonitorLine(actor, icon, `gained ${delta} Death Save ${delta === 1 ? 'Failure' : 'Failures'} (${newFail}/3)`);
         await postMonitorMessage(actor, line, "tiny-monitor-loss", "deathsave");
       } else {
         // Lost failure(s) or reset (good thing!)
         const absDelta = Math.abs(delta);
-        const line = `${icon} ${link} lost ${absDelta} Death Save ${absDelta === 1 ? 'Failure' : 'Failures'} (${newFail}/3)`;
+        const line = buildMonitorLine(actor, icon, `lost ${absDelta} Death Save ${absDelta === 1 ? 'Failure' : 'Failures'} (${newFail}/3)`);
         await postMonitorMessage(actor, line, "tiny-monitor-gain", "deathsave");
       }
     }
@@ -563,7 +566,7 @@ async function processActorUpdate(actor, data) {
         const absDelta = Math.abs(delta);
         const slotWord = absDelta === 1 ? "slot" : "slots";
         const quantityStr = absDelta > 1 ? `${absDelta} ` : "";
-        const line = `${icon} ${link} ${action} ${quantityStr}level ${level} ${slotWord}`;
+        const line = buildMonitorLine(actor, icon, `${action} ${quantityStr}level ${level} ${slotWord}`);
         await postMonitorMessage(actor, line, cls, "spellslot");
       }
     }
@@ -579,7 +582,6 @@ Hooks.on("createItem", async (item, options, userId) => {
   if (!(item.parent instanceof Actor)) return;
 
   const qty = readNumber(item, "system.quantity") || 1;
-  const link = getActorLink(item.parent);
   const safeItemName = clipName(item.name);
   const icon = `<i class="fa-solid fa-backpack"></i>`;
 
@@ -587,10 +589,10 @@ Hooks.on("createItem", async (item, options, userId) => {
 
   let line;
   if (qty === 1 || isSimple) {
-    line = `${icon} ${link} added ${safeItemName}${qty > 1 ? ` (+${qty})` : ""}`;
+    line = buildMonitorLine(item.parent, icon, `added ${safeItemName}${qty > 1 ? ` (+${qty})` : ""}`);
   } else {
     // Verbose existing behavior for initial quantity > 1
-    line = `${icon} ${link} (${safeItemName}): 0 + ${qty} → ${qty}`;
+    line = buildMonitorLine(item.parent, icon, `(${safeItemName}): 0 + ${qty} → ${qty}`);
   }
 
   await postMonitorMessage(item.parent, line, "tiny-monitor-item-inc", "item", true);
@@ -618,9 +620,8 @@ Hooks.on("updateItem", (item, change, options, userId) => {
     if (willUpdatePath(change, "system.prepared") || willUpdatePath(change, "system.preparation.prepared") || willUpdatePath(change, "system.method") || willUpdatePath(change, "system.preparation.mode")) {
       const prepared = computePreparedAfter(item, change);
       const level = readNumber(item, "system.level");
-      const link = getActorLink(item.parent);
       const icon = `<i class="fa-solid fa-book"></i>`;
-      const line = `${icon} ${link} ${prepared ? "prepared" : "unprepared"}: ${clipName(item.name)}${Number.isFinite(level) ? ` (Lv ${level})` : ""}`;
+      const line = buildMonitorLine(item.parent, icon, `${prepared ? "prepared" : "unprepared"}: ${clipName(item.name)}${Number.isFinite(level) ? ` (Lv ${level})` : ""}`);
       postMonitorMessage(item.parent, line, "tiny-monitor-spellprep", "spellprep", true);
     }
   }
@@ -650,7 +651,6 @@ Hooks.on("updateItem", (item, change, options, userId) => {
 async function processItemUpdate(item, data) {
   if (!item.parent) return;
 
-  const link = getActorLink(item.parent);
   const icon = `<i class="fa-solid fa-backpack"></i>`;
 
   // Quantity
@@ -668,11 +668,11 @@ async function processItemUpdate(item, data) {
 
       if (oldQty === 0 && newQty === 1) {
         // Treated as pure addition
-        await postMonitorMessage(item.parent, `${icon} ${link} added ${safeItemName}`, "tiny-monitor-item-inc", "item", true);
+        await postMonitorMessage(item.parent, buildMonitorLine(item.parent, icon, `added ${safeItemName}`), "tiny-monitor-item-inc", "item", true);
       }
       else if (oldQty === 1 && newQty === 0) {
         // Treated as pure deletion
-        await postMonitorMessage(item.parent, `${icon} ${link} deleted ${safeItemName}`, "tiny-monitor-item-dec", "item", true);
+        await postMonitorMessage(item.parent, buildMonitorLine(item.parent, icon, `deleted ${safeItemName}`), "tiny-monitor-item-dec", "item", true);
       }
       else {
         // Quantity adjustment
@@ -680,7 +680,7 @@ async function processItemUpdate(item, data) {
           ? `${sign} ${abs}`
           : `${oldQty} ${sign} ${abs} → ${newQty}`;
 
-        const line = `${icon} ${link} ${safeItemName}: ${text}`;
+        const line = buildMonitorLine(item.parent, icon, `${safeItemName}: ${text}`);
         await postMonitorMessage(item.parent, line, delta > 0 ? "tiny-monitor-item-inc" : "tiny-monitor-item-dec", "item", true);
       }
     }
@@ -688,7 +688,7 @@ async function processItemUpdate(item, data) {
 
   // Rename
   if (data.oldName !== undefined && item.name !== data.oldName) {
-    const line = `${icon} ${link} Item: ${clipName(data.oldName)} → ${clipName(item.name)}`;
+    const line = buildMonitorLine(item.parent, icon, `Item: ${clipName(data.oldName)} → ${clipName(item.name)}`);
     await postMonitorMessage(item.parent, line, "tiny-monitor-item", "item", true);
   }
 }
@@ -702,7 +702,7 @@ Hooks.on("preDeleteItem", (item, options, userId) => {
   if (!(item.parent instanceof Actor)) return;
 
   ITEM_DELETE_STASH.set(item, {
-    link: getActorLink(item.parent),
+    actor: item.parent,
     whisper: buildRecipients(item.parent),
     name: clipName(item.name),
     qty: readNumber(item, "system.quantity"),
@@ -716,7 +716,7 @@ Hooks.on("deleteItem", async (item, options, userId) => {
   ITEM_DELETE_STASH.delete(item);
   if (!payload) return;
 
-  const { hasQty, qty, link, whisper, name } = payload;
+  const { hasQty, qty, actor, whisper, name } = payload;
   const oldQty = Number(qty ?? 0);
 
   // Suppress deletion message if item tracks quantity but was already 0
@@ -726,8 +726,8 @@ Hooks.on("deleteItem", async (item, options, userId) => {
   const icon = `<i class="fa-solid fa-backpack"></i>`;
 
   const line = (treatAsSingleton || getWorldBool("simpleOutput"))
-    ? `${icon} ${link} deleted ${name}`
-    : `${icon} ${link} ${name}: ${oldQty} - ${oldQty} → 0`;
+    ? buildMonitorLine(actor, icon, `deleted ${name}`)
+    : buildMonitorLine(actor, icon, `${name}: ${oldQty} - ${oldQty} → 0`);
 
   await ChatMessage.create({
     content: `<div class="tiny-monitor-line tm-multiline">${line}</div>`,
