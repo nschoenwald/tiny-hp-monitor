@@ -54,6 +54,8 @@ function detectSystemPaths(sampleActor) {
       damageSystem: false
     };
   }
+
+  if (sys === "demonlord") return { hpPath: "system.characteristics.health.value", tempPath: null, tempMaxPath: "system.characteristics.health.max", damageSystem: true};
   if (sys === "pf2e") return { hpPath: "system.attributes.hp.value", tempPath: "system.attributes.hp.temp", tempMaxPath: null, damageSystem: false };
   if (sys === "shadowdark") return { hpPath: "system.hp.value", tempPath: null, tempMaxPath: null, damageSystem: false };
 
