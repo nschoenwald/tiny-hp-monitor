@@ -158,17 +158,8 @@ async function postMonitorMessage(actor, line, cls, kind, isMultiline = false) {
   });
 }
 
-function escapeHtmlAttr(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
 function buildMonitorLine(actor, icon, text) {
-  const fullActorName = escapeHtmlAttr(getActorDisplayName(actor));
-  return `${icon}<span class="tm-actor" title="${fullActorName}">${getActorLink(actor)}</span><span class="tm-text">${text}</span>`;
+  return `${icon}<span class="tm-actor">${getActorLink(actor)}</span><span class="tm-text">${text}</span>`;
 }
 
 // DnD5e Spell Prep Logic
