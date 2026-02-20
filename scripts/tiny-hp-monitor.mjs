@@ -25,10 +25,13 @@ function clipName(name) {
   return chars.slice(0, MAX_NAME_CHARS).join("") + "…";
 }
 
-function getActorLink(actor) {
+function getActorDisplayName(actor) {
   const token = actor.token || actor.getActiveTokens()[0];
-  const rawName = token?.name || actor.name;
-  const label = clipName(rawName);
+  return String(token?.name || actor.name || "");
+}
+
+function getActorLink(actor) {
+  const label = clipName(getActorDisplayName(actor));
   return `@UUID[${actor.uuid}]{${label}}`;
 }
 
