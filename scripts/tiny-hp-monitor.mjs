@@ -55,7 +55,7 @@ function detectSystemPaths(sampleActor) {
     };
   }
 
-  if (sys === "demonlord") return { hpPath: "system.characteristics.health.value", tempPath: null, tempMaxPath: "system.characteristics.health.max", damageSystem: true};
+  if (sys === "demonlord") return { hpPath: "system.characteristics.health.value", tempPath: null, tempMaxPath: "system.characteristics.health.max", damageSystem: true };
   if (sys === "pf2e") return { hpPath: "system.attributes.hp.value", tempPath: "system.attributes.hp.temp", tempMaxPath: null, damageSystem: false };
   if (sys === "shadowdark") return { hpPath: "system.hp.value", tempPath: null, tempMaxPath: null, damageSystem: false };
 
@@ -582,7 +582,7 @@ Hooks.on("createItem", async (item, options, userId) => {
 
   const qty = readNumber(item, "system.quantity") || 1;
   const link = getActorLink(item.parent);
-  const safeItemName = clipName(item.name);
+  const safeItemName = item.name;
   const icon = `<i class="fa-solid fa-backpack"></i>`;
 
   const isSimple = getWorldBool("simpleOutput");
@@ -622,7 +622,7 @@ Hooks.on("updateItem", (item, change, options, userId) => {
       const level = readNumber(item, "system.level");
       const link = getActorLink(item.parent);
       const icon = `<i class="fa-solid fa-book"></i>`;
-      const line = `${icon} ${link} ${prepared ? "prepared" : "unprepared"}: ${clipName(item.name)}${Number.isFinite(level) ? ` (Lv ${level})` : ""}`;
+      const line = `${icon} ${link} ${prepared ? "prepared" : "unprepared"}: ${item.name}${Number.isFinite(level) ? ` (Lv ${level})` : ""}`;
       postMonitorMessage(item.parent, line, "tiny-monitor-spellprep", "spellprep", true);
     }
   }
@@ -661,7 +661,7 @@ async function processItemUpdate(item, data) {
     const newQty = readNumber(item, "system.quantity") || 0;
 
     if (newQty !== oldQty) {
-      const safeItemName = clipName(item.name);
+      const safeItemName = item.name;
 
       const delta = newQty - oldQty;
       const sign = delta > 0 ? "+" : "-";
@@ -690,7 +690,7 @@ async function processItemUpdate(item, data) {
 
   // Rename
   if (data.oldName !== undefined && item.name !== data.oldName) {
-    const line = `${icon} ${link} Item: ${clipName(data.oldName)} → ${clipName(item.name)}`;
+    const line = `${icon} ${link} Item: ${data.oldName} → ${item.name}`;
     await postMonitorMessage(item.parent, line, "tiny-monitor-item", "item", true);
   }
 }
@@ -706,7 +706,7 @@ Hooks.on("preDeleteItem", (item, options, userId) => {
   ITEM_DELETE_STASH.set(item, {
     link: getActorLink(item.parent),
     whisper: buildRecipients(item.parent),
-    name: clipName(item.name),
+    name: item.name,
     qty: readNumber(item, "system.quantity"),
     hasQty: foundry.utils.hasProperty(item, "system.quantity")
   });

@@ -130,7 +130,11 @@ li.chat-message.tiny-monitor-msg .tiny-monitor-line .content-link i {
 li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline {
   white-space: normal;
   word-break: break-word;
-  display: block;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 li.chat-message.tiny-monitor-msg .message-content .tiny-monitor-line.tm-multiline>i,
